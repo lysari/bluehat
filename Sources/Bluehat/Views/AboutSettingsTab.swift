@@ -28,10 +28,15 @@ struct AboutSettingsTab: View {
                 }
                 LabeledContent("Verified version", value: store.rulebook.map { String($0.version) } ?? "Not loaded yet")
                 LabeledContent("Signed", value: store.rulebook?.issued?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
-                LabeledContent("Signing key") {
-                    Text(RuleFeed.publicKeyFingerprint)
-                        .font(Typography.detail)
-                        .textSelection(.enabled)
+                LabeledContent("Expires", value: store.rulebook?.expires?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
+                LabeledContent(RuleFeed.trustedKeys.count == 1 ? "Trusted key" : "Trusted keys") {
+                    VStack(alignment: .trailing, spacing: Metrics.spaceTight) {
+                        ForEach(RuleFeed.trustedKeys.map(RuleFeed.fingerprint(of:)), id: \.self) { fingerprint in
+                            Text(fingerprint)
+                                .font(Typography.detail)
+                                .textSelection(.enabled)
+                        }
+                    }
                 }
             }
         }

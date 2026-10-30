@@ -5,7 +5,7 @@ import Testing
 
 struct ScannerTests {
     func rulebook(_ rules: [Rule]) -> Rulebook {
-        Rulebook(schema: 1, version: 1, rules: rules, issued: nil)
+        Rulebook(schema: 1, version: 1, rules: rules, issued: nil, expires: nil)
     }
 
     func rule(_ id: String, _ check: CheckKind, severity: Severity = .high, patterns: [String]? = nil, paths: [String]? = nil) -> Rule {

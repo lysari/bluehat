@@ -49,6 +49,7 @@ public struct Rule: Codable, Sendable, Identifiable {
 public struct Rulebook: Codable, Sendable {
     public static let supportedSchema = 1
     public static let staleAfter: TimeInterval = 14 * 24 * 3600
+    public static let validity: TimeInterval = 30 * 24 * 3600
     static let maxRules = 500
     static let maxEntriesPerRule = 200
     static let maxPatternLength = 256
@@ -58,13 +59,14 @@ public struct Rulebook: Codable, Sendable {
     static let maxReferenceLength = 300
 
     enum CodingKeys: String, CodingKey {
-        case schema, version, rules, issued
+        case schema, version, rules, issued, expires
     }
 
     public let schema: Int
     public let version: Int
     public let rules: [Rule]
     public let issued: Date?
+    public let expires: Date?
     public private(set) var unsupportedRuleCount = 0
 
     public static func decode(from data: Data) throws -> Rulebook {
@@ -183,6 +185,7 @@ extension Rulebook {
         schema = try container.decode(Int.self, forKey: .schema)
         version = try container.decode(Int.self, forKey: .version)
         issued = try container.decodeIfPresent(Date.self, forKey: .issued)
+        expires = try container.decodeIfPresent(Date.self, forKey: .expires)
         let decoded = try container.decode([SupportedRule].self, forKey: .rules)
         rules = decoded.compactMap(\.rule)
         unsupportedRuleCount = decoded.count - rules.count

@@ -23,15 +23,19 @@ public enum RuleFeedError: LocalizedError, Equatable {
     case badSignature
     case invalidRules(RulebookError)
     case rollback(cached: Int, received: Int)
+    case outdated(Int)
+    case expired(Date)
 
     public var errorDescription: String? {
         switch self {
         case .unreachable: "Could not reach the rules repository."
         case .badResponse: "The rules repository sent an unexpected response."
         case .tooLarge: "The rules file is larger than allowed."
-        case .badSignature: "The rules file signature is invalid. It was not signed by your key."
+        case .badSignature: "The rules file signature is invalid. It was not signed by a trusted key."
         case .invalidRules(let error): error.errorDescription
         case .rollback(let cached, let received): "Received older rules (v\(received)) than the verified copy (v\(cached))."
+        case .outdated(let version): "Rules v\(version) are older than this version of Bluehat accepts. Sign and push new rules."
+        case .expired(let date): "The rules expired on \(date.formatted(date: .abbreviated, time: .shortened)). Sign and push new rules."
         }
     }
 }
@@ -39,7 +43,10 @@ public enum RuleFeedError: LocalizedError, Equatable {
 public struct RuleFeed: Sendable {
     public static let repositoryURL = URL(string: "https://github.com/lysari/bluehat-rules")!
     public static let sourceURL = URL(string: "https://raw.githubusercontent.com/lysari/bluehat-rules/main/rules.signed.json")!
-    static let publicKey = try! Curve25519.Signing.PublicKey(rawRepresentation: Data(base64Encoded: "ejbt4bgFPpvJCdj/67M3kWasEgEs1eKUs9v/ii97PhA=")!)
+    public static let trustedKeys = [
+        "ejbt4bgFPpvJCdj/67M3kWasEgEs1eKUs9v/ii97PhA=",
+    ].map { try! Curve25519.Signing.PublicKey(rawRepresentation: Data(base64Encoded: $0)!) }
+    public static let minimumVersion = 2026103008
     static let maxEnvelopeBytes = 2_000_000
     static let requestTimeout: TimeInterval = 15
 
@@ -49,20 +56,20 @@ public struct RuleFeed: Sendable {
         self.cacheURL = cacheURL
     }
 
-    public static var publicKeyFingerprint: String {
-        SHA256.hash(data: publicKey.rawRepresentation).prefix(8).map { String(format: "%02X", $0) }.joined(separator: ":")
+    public static func fingerprint(of key: Curve25519.Signing.PublicKey) -> String {
+        SHA256.hash(data: key.rawRepresentation).prefix(8).map { String(format: "%02X", $0) }.joined(separator: ":")
     }
 
     public static var defaultCacheURL: URL {
         URL.applicationSupportDirectory.appending(components: "Bluehat", "rules.signed.json")
     }
 
-    public func load() async throws(RuleFeedError) -> LoadedRulebook {
+    public func load(now: Date = .now) async throws(RuleFeedError) -> LoadedRulebook {
         let cached = try? Data(contentsOf: cacheURL)
-        let cachedRulebook = cached.flatMap { try? Self.open(envelope: $0, publicKey: Self.publicKey) }
+        let cachedRulebook = cached.flatMap { try? Self.open(envelope: $0, publicKeys: Self.trustedKeys, minimumVersion: Self.minimumVersion, now: now) }
         do throws(RuleFeedError) {
             let envelope = try await download()
-            let rulebook = try Self.open(envelope: envelope, publicKey: Self.publicKey)
+            let rulebook = try Self.open(envelope: envelope, publicKeys: Self.trustedKeys, minimumVersion: Self.minimumVersion, now: now)
             if let cachedRulebook, rulebook.version < cachedRulebook.version {
                 throw RuleFeedError.rollback(cached: cachedRulebook.version, received: rulebook.version)
             }
@@ -75,20 +82,24 @@ public struct RuleFeed: Sendable {
         }
     }
 
-    static func open(envelope: Data, publicKey: Curve25519.Signing.PublicKey) throws(RuleFeedError) -> Rulebook {
+    static func open(envelope: Data, publicKeys: [Curve25519.Signing.PublicKey], minimumVersion: Int, now: Date) throws(RuleFeedError) -> Rulebook {
         guard
             let decoded = try? JSONDecoder().decode(SignedEnvelope.self, from: envelope),
             let payload = Data(base64Encoded: decoded.rules),
             let signature = Data(base64Encoded: decoded.signature),
-            publicKey.isValidSignature(signature, for: payload)
+            publicKeys.contains(where: { $0.isValidSignature(signature, for: payload) })
         else { throw .badSignature }
+        let rulebook: Rulebook
         do {
-            return try Rulebook.decode(from: payload)
+            rulebook = try Rulebook.decode(from: payload)
         } catch let error as RulebookError {
             throw .invalidRules(error)
         } catch {
             throw .invalidRules(.malformed)
         }
+        guard rulebook.version >= minimumVersion else { throw .outdated(rulebook.version) }
+        if let expires = rulebook.expires, expires <= now { throw .expired(expires) }
+        return rulebook
     }
 
     private func download() async throws(RuleFeedError) -> Data {

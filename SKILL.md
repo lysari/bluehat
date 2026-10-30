@@ -20,7 +20,8 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 2. Run `devbox run test` to check every rule still validates.
 3. Run `devbox run sign-rules`. It refuses to sign invalid rules, stamps the signed `issued` time, and writes `rules/rules.signed.json`.
 4. In `rules/` (a git submodule of `lysari/bluehat-rules`), commit both files and `git push`. The app picks them up on the next scan. Then commit the updated `rules` pointer in the app repo, so its tests run against the same rules.
-5. Re-sign and push at least every 14 days, even without changes, or the app shows a stale-rules warning.
+5. Re-sign and push at least every 14 days, even without changes. Signed rules expire 30 days after signing; the app warns at 14 days and refuses expired rules.
+6. The rules repo's CI (`Verify rules`) must pass. Key backup and rotation steps are in `rules/README.md`.
 
 ## Commands
 
@@ -33,7 +34,8 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 | `devbox run install` | Bundle, copy to `/Applications/Bluehat.app`, and open it |
 | `devbox run icon` | Regenerate `assets/AppIcon.icns` from `scripts/make-icon.swift` |
 | `devbox run keygen` | Create the signing key in the login Keychain, or print the existing public key |
-| `devbox run sign-rules` | Validate and sign `rules/rules.json` |
+| `devbox run sign-rules` | Validate and sign `rules/rules.json` with the Keychain key, stamping `issued` and `expires` |
+| `devbox run -- swift run bluehat-sign backup-keygen <file>` | Create an offline backup signing key |
 
 ## Requirements
 

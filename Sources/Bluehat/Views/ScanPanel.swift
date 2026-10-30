@@ -40,7 +40,7 @@ struct ScanPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if store.rulesAreStale, let issued = store.rulebook?.issued {
-                Label("Rules were signed \(issued.formatted(.relative(presentation: .named))). Sign and push new rules, or check that nothing is blocking updates.", systemImage: "clock.badge.exclamationmark")
+                Label("Rules were signed \(issued.formatted(.relative(presentation: .named)))\(store.rulebook?.expires.map { " and expire on \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""). Sign and push new rules, or check that nothing is blocking updates.", systemImage: "clock.badge.exclamationmark")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.notice)
                     .fixedSize(horizontal: false, vertical: true)

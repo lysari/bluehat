@@ -56,13 +56,15 @@ Rule content:
 - [ ] SHA-256 hashes of current macOS malware samples
 - [x] `summary`, `remedy` and `references` fields per rule
 
-## Phase 4: Rule supply chain hardening
+## Phase 4: Rule supply chain hardening (in progress)
 
-- [ ] Several trusted public keys, so the signing key can be rotated without breaking installed apps
-- [ ] `expires` field in the signed rulebook; refuse expired rules
-- [ ] GitHub Action in `bluehat-rules` that validates `rules.json` and checks `rules.signed.json` matches it (signing stays on your Mac)
+- [x] Several trusted public keys, `backup-keygen` for an offline backup key, `sign --key-file`, rotation runbook in the rules README
+- [ ] Create the offline backup key and add it to the app and CI (owner step)
+- [x] Signed `expires` (30 days), refused when past, cache included; minimum accepted version 2026103008
+- [x] `Verify rules` GitHub Action: signature, match with `rules.json`, stamps, expiry, unique ids, version bump (signing stays on your Mac)
 - [ ] Branch protection and required 2FA on the rules repo
-- [ ] Store the signing key without passing it on the command line (Keychain API or Secure Enclave)
+- [x] Signing key saved to Keychain through stdin, never on the command line
+- [ ] Non-exportable Secure Enclave signing key (needs P-256 instead of Ed25519)
 
 ## Phase 5: Distribution
 
