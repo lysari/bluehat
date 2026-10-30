@@ -19,7 +19,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 1. Edit `rules/rules.json` (format in `rules/README.md`) and raise `version`. Give each rule a `summary` and `remedy` for the detail view.
 2. Run `devbox run test` to check every rule still validates.
 3. Run `devbox run sign-rules`. It refuses to sign invalid rules, stamps the signed `issued` time, and writes `rules/rules.signed.json`.
-4. In `rules/`, commit both files and `git push`. The app picks them up on the next scan.
+4. In `rules/` (a git submodule of `lysari/bluehat-rules`), commit both files and `git push`. The app picks them up on the next scan. Then commit the updated `rules` pointer in the app repo, so its tests run against the same rules.
 5. Re-sign and push at least every 14 days, even without changes, or the app shows a stale-rules warning.
 
 ## Commands

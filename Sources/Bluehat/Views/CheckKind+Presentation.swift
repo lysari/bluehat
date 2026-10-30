@@ -16,6 +16,7 @@ extension CheckKind {
         case .appSignature: "App signing"
         case .sshKey: "SSH keys"
         case .profile: "Profiles"
+        case .browserExtension: "Browser extensions"
         }
     }
 
@@ -33,6 +34,7 @@ extension CheckKind {
         case .appSignature: "app.badge.checkmark"
         case .sshKey: "key.horizontal"
         case .profile: "gearshape.2"
+        case .browserExtension: "puzzlepiece.extension"
         }
     }
 
@@ -50,6 +52,7 @@ extension CheckKind {
         case .appSignature: "If you didn't build or knowingly allow this app, delete it and download it again from its developer or the App Store. A changed signature can also come from an app updating itself; reinstalling fixes that too."
         case .sshKey: "Open ~/.ssh/authorized_keys in a text editor and delete every line you don't recognize. If you don't use SSH at all, turn off Remote Login in System Settings › General › Sharing."
         case .profile: "Open System Settings › General › Device Management, select the profile, and remove it unless your school or company installed it."
+        case .browserExtension: "Open the browser's extensions page (for Chrome, chrome://extensions), find the extension by its ID with Developer mode on, and remove it. Then change passwords for sites you used while it was installed."
         }
     }
 }

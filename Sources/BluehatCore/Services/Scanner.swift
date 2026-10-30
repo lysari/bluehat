@@ -10,6 +10,17 @@ public struct Scanner: Sendable {
     static let appDirectories = ["/Applications", "~/Applications", "~/Downloads"]
     static let authorizedKeyFiles = ["~/.ssh/authorized_keys", "~/.ssh/authorized_keys2"]
     static let sshKeyTypePrefixes = ["ssh-", "ecdsa-", "sk-"]
+    static let chromiumBrowsers = [
+        ("Chrome", "~/Library/Application Support/Google/Chrome"),
+        ("Brave", "~/Library/Application Support/BraveSoftware/Brave-Browser"),
+        ("Edge", "~/Library/Application Support/Microsoft Edge"),
+        ("Arc", "~/Library/Application Support/Arc/User Data"),
+        ("Chromium", "~/Library/Application Support/Chromium"),
+        ("Vivaldi", "~/Library/Application Support/Vivaldi"),
+    ]
+    static let firefoxProfiles = "~/Library/Application Support/Firefox/Profiles"
+    static let firefoxSignedState = 2
+    static let maxExtensionIndexBytes = 10_000_000
     static let adHocSignatureFlag: UInt32 = 0x2
     static let maxReadBytes = 1_000_000
     static let maxHashedFileBytes = 50_000_000
@@ -113,6 +124,14 @@ public struct Scanner: Sendable {
                 }
                 .map { Finding(rule: rule, detail: "\($0.name) (\($0.identifier)) · payloads: \($0.payloadTypes.joined(separator: ", "))", path: nil) }
             }
+        case .browserExtension:
+            let extensions = chromiumBrowsers.flatMap { chromiumExtensions(browser: $0.0, root: expand($0.1)) } + firefoxExtensions(profilesRoot: expand(firefoxProfiles))
+            return rules.flatMap { rule in
+                let regexes = regexes(rule.patterns)
+                return extensions.filter { matches(regexes, $0.descriptor) }.map {
+                    Finding(rule: rule, detail: $0.detail, path: $0.path)
+                }
+            }
         case .appSignature:
             let apps = installedApps()
             let problems = Mutex<[(path: String, problem: String)]>([])
@@ -162,6 +181,63 @@ public struct Scanner: Sendable {
             guard let values = attributes[key], values["internaldata"] != "TRUE", let identifier = values["profileIdentifier"] else { return nil }
             return (values["name"] ?? identifier, identifier, payloads[key] ?? [])
         }
+    }
+
+    static func chromiumExtensions(browser: String, root: String) -> [(descriptor: String, detail: String, path: String)] {
+        let fileManager = FileManager.default
+        let profiles = (try? fileManager.contentsOfDirectory(atPath: root)) ?? []
+        return profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
+            let extensionsRoot = "\(root)/\(profile)/Extensions"
+            let ids = (try? fileManager.contentsOfDirectory(atPath: extensionsRoot)) ?? []
+            return ids.compactMap { id in
+                let versions = ((try? fileManager.contentsOfDirectory(atPath: "\(extensionsRoot)/\(id)")) ?? []).filter { !$0.hasPrefix(".") }
+                guard
+                    let version = versions.max(by: { $0.compare($1, options: .numeric) == .orderedAscending }),
+                    let data = fileManager.contents(atPath: "\(extensionsRoot)/\(id)/\(version)/manifest.json"), data.count <= maxReadBytes,
+                    let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                else { return nil }
+                let directory = "\(extensionsRoot)/\(id)/\(version)"
+                let name = localizedName(manifest["name"] as? String ?? id, manifest: manifest, directory: directory)
+                let permissions = ["permissions", "host_permissions", "optional_permissions"].flatMap { (manifest[$0] as? [Any] ?? []).compactMap { $0 as? String } }
+                let update = manifest["update_url"] as? String ?? "none"
+                return extensionRecord(browser: browser, id: id, name: name, update: update, permissions: permissions, path: directory)
+            }
+        }
+    }
+
+    static func firefoxExtensions(profilesRoot: String) -> [(descriptor: String, detail: String, path: String)] {
+        let profiles = (try? FileManager.default.contentsOfDirectory(atPath: profilesRoot)) ?? []
+        return profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
+            guard
+                let data = FileManager.default.contents(atPath: "\(profilesRoot)/\(profile)/extensions.json"), data.count <= maxExtensionIndexBytes,
+                let addons = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["addons"] as? [[String: Any]]
+            else { return [] }
+            return addons.compactMap { addon in
+                guard let id = addon["id"] as? String, let location = addon["location"] as? String, location == "app-profile" else { return nil }
+                let name = (addon["defaultLocale"] as? [String: Any])?["name"] as? String ?? id
+                let userPermissions = addon["userPermissions"] as? [String: Any] ?? [:]
+                let permissions = ["permissions", "origins"].flatMap { userPermissions[$0] as? [String] ?? [] }
+                let isSigned = (addon["signedState"] as? Int ?? 0) >= firefoxSignedState
+                return extensionRecord(browser: "Firefox", id: id, name: name, update: isSigned ? "addons.mozilla.org" : "none", permissions: permissions, path: addon["path"] as? String ?? "\(profilesRoot)/\(profile)")
+            }
+        }
+    }
+
+    static func extensionRecord(browser: String, id: String, name: String, update: String, permissions: [String], path: String) -> (descriptor: String, detail: String, path: String) {
+        let descriptor = "browser=\(browser) id=\(id) name=\(name) update=\(update) permissions=\(permissions.joined(separator: ","))"
+        return (descriptor, clip("\(browser): \(name) (\(id))"), path)
+    }
+
+    static func localizedName(_ name: String, manifest: [String: Any], directory: String) -> String {
+        guard name.hasPrefix("__MSG_"), name.hasSuffix("__"), let locale = manifest["default_locale"] as? String else { return name }
+        let key = String(name.dropFirst(6).dropLast(2)).lowercased()
+        guard
+            let data = FileManager.default.contents(atPath: "\(directory)/_locales/\(locale)/messages.json"),
+            let messages = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+            let entry = messages.first(where: { $0.key.lowercased() == key })?.value as? [String: Any],
+            let message = entry["message"] as? String
+        else { return name }
+        return message
     }
 
     static func signatureProblem(at url: URL) -> String? {

@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -113,7 +113,7 @@ public struct Rulebook: Codable, Sendable {
         switch rule.check {
         case .path:
             return problem(inPaths: rule.paths)
-        case .launchItem, .shellProfile, .process, .crontab:
+        case .launchItem, .shellProfile, .process, .crontab, .browserExtension:
             return problem(inPatterns: rule.patterns)
         case .listeningPort:
             guard let ports = rule.ports, !ports.isEmpty, ports.count <= maxEntriesPerRule else { return "ports must list 1-\(maxEntriesPerRule) ports" }

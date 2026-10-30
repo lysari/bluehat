@@ -40,7 +40,8 @@ New check types (each needs an app update; rules then use them):
 - [x] `appSignature`: apps in Applications and Downloads that are unsigned, ad-hoc signed or changed after signing
 - [x] Older apps skip rules with unknown check types instead of rejecting the rulebook
 - [ ] `notarization`: Developer ID apps that aren't notarized (Gatekeeper's online verdict, too slow to run every scan today)
-- [ ] `browserExtension`: Safari, Chrome, Brave, Edge and Firefox extensions by id
+- [x] `browserExtension`: Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions; flags extensions outside official stores, cookie access on every site, debugger and proxy permissions
+- [ ] Known-bad extension IDs from published compromise reports
 - [x] `profile`: user configuration profiles, flagging proxy, DNS, root certificate, content filter and browser policy payloads (computer-wide profiles need root)
 - [ ] `systemExtension`: system and kernel extensions not from known vendors
 - [x] `sshKey`: every key in `~/.ssh/authorized_keys` with its fingerprint; ignore known keys so only new ones return
