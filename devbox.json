@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.18.4/.schema/devbox.schema.json",
+  "packages": [],
+  "env": {
+    "DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer",
+    "SDKROOT": "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+  },
+  "shell": {
+    "scripts": {
+      "build": "swift build",
+      "test": "swift test",
+      "bundle": "sh scripts/bundle.sh",
+      "start": "sh scripts/bundle.sh && open .build/Bluehat.app",
+      "install": "sh scripts/install.sh",
+      "keygen": "swift run bluehat-sign keygen",
+      "sign-rules": "swift run bluehat-sign sign rules/rules.json",
+      "icon": "swift scripts/make-icon.swift assets/AppIcon.icns"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+import CoreGraphics
+
+enum Metrics {
+    static let panelWidth: CGFloat = 380
+    static let panelPadding: CGFloat = 14
+    static let cardPadding: CGFloat = 14
+    static let cardMinimumRadius: CGFloat = 12
+    static let cardStrokeWidth: CGFloat = 0.5
+    static let findingsMaxHeight: CGFloat = 260
+    static let spaceTight: CGFloat = 2
+    static let spaceSmall: CGFloat = 6
+    static let spaceMedium: CGFloat = 10
+    static let spaceLarge: CGFloat = 12
+    static let spaceSection: CGFloat = 14
+    static let appIcon: CGFloat = 28
+    static let heroEmblem: CGFloat = 72
+    static let detailEmblem: CGFloat = 44
+    static let welcomeEmblem: CGFloat = 96
+    static let aboutEmblem: CGFloat = 80
+    static let welcomeWidth: CGFloat = 460
+    static let welcomePadding: CGFloat = 28
+    static let settingsWidth: CGFloat = 500
+    static let settingsMinHeight: CGFloat = 360
+    static let featureSymbolWidth: CGFloat = 28
+    static let emblemDepthLayers = 7
+    static let emblemDepthRatio: CGFloat = 0.1
+    static let emblemDepthTiltShare: CGFloat = 0.6
+    static let emblemTiltDegrees: Double = 18
+    static let emblemPerspective: CGFloat = 0.5
+    static let emblemGroundWidthRatio: CGFloat = 0.7
+    static let emblemGroundHeightRatio: CGFloat = 0.14
+    static let emblemGroundBlurRatio: CGFloat = 0.07
+    static let emblemGlossWidthRatio: CGFloat = 0.9
+    static let emblemGlossHeightRatio: CGFloat = 0.5
+    static let emblemGlossOffsetRatio: CGFloat = 0.26
+    static let emblemSymbolRatio: CGFloat = 0.36
+    static let emblemTextRatio: CGFloat = 0.3
+    static let emblemTextMinimumScale: CGFloat = 0.6
+    static let emblemTextInsetRatio: CGFloat = 0.16
+    static let emblemFaceRaiseRatio: CGFloat = 0.04
+    static let emblemGlyphShadowRadius: CGFloat = 1
+    static let segmentGlowRadius: CGFloat = 4
+    static let ringDiameter: CGFloat = 136
+    static let ringLineWidth: CGFloat = 9
+    static let ringSegmentGap: CGFloat = 0.045
+    static let ringSweepInset: CGFloat = 16
+    static let ringGlowBlur: CGFloat = 30
+    static let ringGlowInset: CGFloat = 32
+    static let heroTopPadding: CGFloat = 4
+    static let findingBadge: CGFloat = 26
+    static let findingSymbol: CGFloat = 12
+    static let checkSymbolWidth: CGFloat = 18
+    static let severityDot: CGFloat = 6
+}
