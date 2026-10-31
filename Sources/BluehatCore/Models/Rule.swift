@@ -23,11 +23,25 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion
 }
 
 public enum SystemSetting: String, Codable, Sendable {
     case sip, gatekeeper, firewall
+}
+
+public enum SoftwareProduct: String, Codable, Sendable, CaseIterable {
+    case node, php, python, openssl, git, ruby
+
+    var hasLetterReleases: Bool {
+        self == .openssl
+    }
+}
+
+public struct VersionRange: Codable, Sendable {
+    public let introduced: String
+    public let fixed: String?
+    public let lastAffected: String?
 }
 
 public struct Rule: Codable, Sendable, Identifiable {
@@ -41,6 +55,9 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let ports: [Int]?
     public let hashes: [String]?
     public let setting: SystemSetting?
+    public let product: SoftwareProduct?
+    public let advisory: String?
+    public let ranges: [VersionRange]?
     public let summary: String?
     public let remedy: String?
     public let references: [String]?
@@ -59,6 +76,7 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
     static let maxExplanationLength = 600
     static let maxReferences = 5
     static let maxReferenceLength = 300
+    static let advisoryPattern = "^[A-Z][A-Z0-9]{1,15}-[A-Za-z0-9._-]{1,48}$"
 
     enum CodingKeys: String, CodingKey {
         case schema, version, rules, issued, expires
@@ -146,7 +164,28 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             return nil
         case .sshKey, .profile:
             return rule.patterns == nil ? nil : problem(inPatterns: rule.patterns)
+        case .softwareVersion:
+            return problem(inSoftwareVersion: rule)
         }
+    }
+
+    static func problem(inSoftwareVersion rule: Rule) -> String? {
+        guard let product = rule.product else { return "product is required" }
+        guard let advisory = rule.advisory, advisory.range(of: advisoryPattern, options: .regularExpression) != nil else {
+            return "advisory must be an id such as CVE-2024-21892"
+        }
+        guard let ranges = rule.ranges, !ranges.isEmpty, ranges.count <= maxEntriesPerRule else { return "ranges must list 1-\(maxEntriesPerRule) ranges" }
+        for range in ranges {
+            guard range.fixed == nil || range.lastAffected == nil else { return "a range sets fixed or lastAffected, not both" }
+            guard let introduced = SoftwareVersion(range.introduced, for: product) else { return "introduced must be a \(product.rawValue) version such as 1.2.3" }
+            if let fixed = range.fixed {
+                guard let end = SoftwareVersion(fixed, for: product), introduced < end else { return "fixed must be a \(product.rawValue) version after introduced" }
+            }
+            if let lastAffected = range.lastAffected {
+                guard let end = SoftwareVersion(lastAffected, for: product), introduced <= end else { return "lastAffected must be a \(product.rawValue) version from introduced on" }
+            }
+        }
+        return nil
     }
 
     static func problem(inReferences references: [String]?) -> String? {

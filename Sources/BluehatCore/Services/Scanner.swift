@@ -4,6 +4,8 @@ import Security
 import Synchronization
 
 public struct Scanner: Sendable {
+    typealias Installation = (product: SoftwareProduct, version: SoftwareVersion, path: String)
+
     static let launchItemDirectories = ["~/Library/LaunchAgents", "/Library/LaunchAgents", "/Library/LaunchDaemons"]
     static let shellProfileFiles = ["~/.zshrc", "~/.zprofile", "~/.zshenv", "~/.zlogin", "~/.bashrc", "~/.bash_profile", "~/.profile"]
     static let hashedDirectories = ["~/Downloads", "~/Desktop", "/Users/Shared", "/private/tmp"]
@@ -19,13 +21,32 @@ public struct Scanner: Sendable {
         ("Vivaldi", "~/Library/Application Support/Vivaldi"),
     ]
     static let firefoxProfiles = "~/Library/Application Support/Firefox/Profiles"
+    static let homebrewCellars = ["/opt/homebrew/Cellar", "/usr/local/Cellar"]
+    static let versionDirectories: [(product: SoftwareProduct, directory: String)] = [
+        (.node, "~/.nvm/versions/node"),
+        (.node, "~/.volta/tools/image/node"),
+        (.node, "~/Library/Application Support/fnm/node-versions"),
+        (.node, "~/.local/share/fnm/node-versions"),
+        (.node, "~/.asdf/installs/nodejs"),
+        (.node, "~/.local/share/mise/installs/node"),
+        (.python, "~/.pyenv/versions"),
+        (.python, "~/.asdf/installs/python"),
+        (.python, "~/.local/share/mise/installs/python"),
+        (.ruby, "~/.rbenv/versions"),
+        (.ruby, "~/.asdf/installs/ruby"),
+        (.ruby, "~/.local/share/mise/installs/ruby"),
+        (.php, "~/.asdf/installs/php"),
+        (.php, "~/.local/share/mise/installs/php"),
+    ]
+    static let pythonFrameworkVersions = "/Library/Frameworks/Python.framework/Versions"
+    static let nodeInstallerPrefix = "/usr/local"
     static let firefoxSignedState = 2
     static let maxExtensionIndexBytes = 10_000_000
     static let adHocSignatureFlag: UInt32 = 0x2
     static let maxReadBytes = 1_000_000
     static let maxMatchedLength = 8_192
     static let maxHashedFileBytes = 50_000_000
-    static let maxHashedFilesPerDirectory = 5_000
+    static let maxHashedFilesPerDirectory = 50_000
     static let maxHashDepth = 6
     static let hashChunkBytes = 1 << 20
     static let localePattern = "^[A-Za-z0-9_-]{1,16}$"
@@ -147,7 +168,99 @@ public struct Scanner: Sendable {
             return rules.flatMap { rule in
                 sorted.map { Finding(rule: rule, detail: "\(URL(fileURLWithPath: $0.path).lastPathComponent) \($0.problem)", path: $0.path) }
             }
+        case .softwareVersion:
+            return versionFindings(rules, installs: installedSoftware())
         }
+    }
+
+    static func versionFindings(_ rules: [Rule], installs: [Installation]) -> [Finding] {
+        rules.flatMap { rule in
+            installs.filter { $0.product == rule.product }.compactMap { install in
+                affectingRange(of: rule, for: install.version).map { range in
+                    let fix = range.fixed.map { "fixed in \($0)" } ?? "no fixed release listed"
+                    let location = NSString(string: install.path).abbreviatingWithTildeInPath
+                    return Finding(rule: rule, detail: "\(rule.advisory ?? rule.id): \(install.product.rawValue) \(install.version) is affected (\(fix)) · \(location)", path: install.path)
+                }
+            }
+        }
+    }
+
+    static func affectingRange(of rule: Rule, for version: SoftwareVersion) -> VersionRange? {
+        guard let product = rule.product else { return nil }
+        return (rule.ranges ?? []).first { range in
+            guard let introduced = SoftwareVersion(range.introduced, for: product), introduced <= version else { return false }
+            if let fixed = range.fixed {
+                return SoftwareVersion(fixed, for: product).map { version < $0 } ?? false
+            }
+            if let lastAffected = range.lastAffected {
+                return SoftwareVersion(lastAffected, for: product).map { version <= $0 } ?? false
+            }
+            return true
+        }
+    }
+
+    static func installedSoftware() -> [Installation] {
+        homebrewCellars.flatMap(cellarInstalls)
+            + versionDirectories.flatMap { versionedInstalls(of: $0.product, in: expand($0.directory)) }
+            + frameworkPythons(in: pythonFrameworkVersions)
+            + installerNode(prefix: nodeInstallerPrefix)
+    }
+
+    static func cellarInstalls(in cellar: String) -> [Installation] {
+        let formulas = (try? FileManager.default.contentsOfDirectory(atPath: cellar)) ?? []
+        return formulas.sorted().flatMap { formula -> [Installation] in
+            guard let product = SoftwareProduct.allCases.first(where: { formula == $0.rawValue || formula.hasPrefix($0.rawValue + "@") }) else { return [] }
+            return versionedInstalls(of: product, in: "\(cellar)/\(formula)")
+        }
+    }
+
+    static func versionedInstalls(of product: SoftwareProduct, in directory: String) -> [Installation] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+        return names.sorted().compactMap { name in
+            let path = "\(directory)/\(name)"
+            guard
+                fileType(atPath: path) == .typeDirectory,
+                let version = SoftwareVersion(name.replacing(/_[0-9]{1,4}$/, with: ""), for: product)
+            else { return nil }
+            return (product, version, path)
+        }
+    }
+
+    static func frameworkPythons(in versionsDirectory: String) -> [Installation] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: versionsDirectory)) ?? []
+        return names.sorted().compactMap { name in
+            let path = "\(versionsDirectory)/\(name)"
+            guard
+                fileType(atPath: path) == .typeDirectory,
+                SoftwareVersion(name, for: .python) != nil,
+                let quoted = defines(in: readText("\(path)/include/python\(name)/patchlevel.h"))["PY_VERSION"],
+                let version = SoftwareVersion(quoted.trimmingCharacters(in: CharacterSet(charactersIn: "\"")), for: .python)
+            else { return nil }
+            return (.python, version, path)
+        }
+    }
+
+    static func installerNode(prefix: String) -> [Installation] {
+        let binary = "\(prefix)/bin/node"
+        let header = defines(in: readText("\(prefix)/include/node/node_version.h"))
+        let parts = ["MAJOR", "MINOR", "PATCH"].compactMap { header["NODE_\($0)_VERSION"] }
+        guard
+            fileType(atPath: binary) == .typeRegular,
+            parts.count == 3,
+            let version = SoftwareVersion(parts.joined(separator: "."), for: .node)
+        else { return [] }
+        return [(.node, version, binary)]
+    }
+
+    static func defines(in text: String) -> [String: String] {
+        lines(of: text).reduce(into: [:]) { defines, line in
+            let fields = line.split(whereSeparator: \.isWhitespace)
+            if fields.count >= 3, fields[0] == "#define" { defines[String(fields[1])] = String(fields[2]) }
+        }
+    }
+
+    static func fileType(atPath path: String) -> FileAttributeType? {
+        (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
     }
 
     static func authorizedKeys(in text: String) -> [(line: String, summary: String)] {

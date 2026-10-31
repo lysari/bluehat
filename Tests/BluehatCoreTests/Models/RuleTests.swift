@@ -84,6 +84,46 @@ struct RuleTests {
         #expect(throws: RulebookError.self) { try Rulebook.decode(from: data) }
     }
 
+    @Test func decodesSoftwareVersionRule() throws {
+        let fields = #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "20.0.0", "fixed": "20.11.1"}, {"introduced": "0", "lastAffected": "18.19.0"}, {"introduced": "21.0.0"}]"#
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "softwareVersion", fields))).rules.first)
+        #expect(rule.product == .node)
+        #expect(rule.advisory == "CVE-2024-21892")
+        #expect(rule.ranges?.map(\.fixed) == ["20.11.1", nil, nil])
+        #expect(rule.ranges?[1].lastAffected == "18.19.0")
+    }
+
+    @Test(arguments: [
+        #""advisory": "CVE-2024-21892", "ranges": [{"introduced": "0", "fixed": "1.0"}]"#,
+        #""product": "java", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "0", "fixed": "1.0"}]"#,
+        #""product": "node", "ranges": [{"introduced": "0", "fixed": "1.0"}]"#,
+        #""product": "node", "advisory": "cve-2024-21892", "ranges": [{"introduced": "0", "fixed": "1.0"}]"#,
+        #""product": "node", "advisory": "CVE 2024 21892", "ranges": [{"introduced": "0", "fixed": "1.0"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892""#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": []"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"fixed": "1.0"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "0", "fixed": "1.0", "lastAffected": "0.9"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "20.11.1", "fixed": "20.11.1"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "21.0.0", "lastAffected": "20.11.1"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "0", "fixed": "20.11.1-rc.1"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "0", "fixed": "1.1.1w"}]"#,
+        #""product": "node", "advisory": "CVE-2024-21892", "ranges": [{"introduced": "latest"}]"#,
+    ])
+    func rejectsInvalidSoftwareVersionRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "softwareVersion", fields))) }
+    }
+
+    @Test func acceptsLetterReleasesOnlyForOpenSSL() throws {
+        let fields = #""product": "openssl", "advisory": "CVE-2023-5678", "ranges": [{"introduced": "1.1.1", "fixed": "1.1.1x"}]"#
+        #expect(try Rulebook.decode(from: rulebookJSON(rule(check: "softwareVersion", fields))).rules.count == 1)
+    }
+
+    @Test func rejectsTooManyRanges() {
+        let ranges = Array(repeating: #"{"introduced": "0", "fixed": "1.0"}"#, count: Rulebook.maxEntriesPerRule + 1).joined(separator: ",")
+        let data = rulebookJSON(rule(check: "softwareVersion", #""product": "node", "advisory": "CVE-2024-21892", "ranges": [\#(ranges)]"#))
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: data) }
+    }
+
     @Test func signedRulesAreValidForAYearAndWarnInTheLast30Days() throws {
         let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "expires": "2027-10-01T00:00:00Z", "rules": []}"#.utf8)
         let rulebook = try Rulebook.decode(from: data)

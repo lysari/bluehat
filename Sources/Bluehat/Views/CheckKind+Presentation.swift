@@ -17,6 +17,7 @@ extension CheckKind {
         case .sshKey: "SSH keys"
         case .profile: "Profiles"
         case .browserExtension: "Extensions"
+        case .softwareVersion: "Software versions"
         }
     }
 
@@ -35,6 +36,7 @@ extension CheckKind {
         case .sshKey: "key.horizontal"
         case .profile: "gearshape.2"
         case .browserExtension: "puzzlepiece.extension"
+        case .softwareVersion: "shippingbox"
         }
     }
 
@@ -53,6 +55,7 @@ extension CheckKind {
         case .sshKey: "Open ~/.ssh/authorized_keys in a text editor and delete every line you don't recognize. If you don't use SSH at all, turn off Remote Login in System Settings › General › Sharing."
         case .profile: "Open System Settings › General › Device Management, select the profile, and remove it unless your school or company installed it."
         case .browserExtension: "Open the browser's extensions page (for Chrome, chrome://extensions), find the extension by its ID with Developer mode on, and remove it. Then change passwords for sites you used while it was installed."
+        case .softwareVersion: "Upgrade to the fixed version named above with the tool that installed this copy (for example brew upgrade, nvm install or pyenv install), switch your projects to it, then remove the old copy (brew cleanup, nvm uninstall or pyenv uninstall). With no fixed release listed, move to a supported release line."
         }
     }
 }
