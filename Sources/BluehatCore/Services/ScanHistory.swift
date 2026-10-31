@@ -2,6 +2,7 @@ import Foundation
 
 public struct ScanHistory: Sendable {
     public static let maxRecords = 30
+    static let maxFileBytes = 20_000_000
 
     public private(set) var records: [ScanRecord]
     let fileURL: URL
@@ -10,7 +11,7 @@ public struct ScanHistory: Sendable {
         self.fileURL = fileURL
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        records = (try? Data(contentsOf: fileURL)).flatMap { try? decoder.decode([ScanRecord].self, from: $0) } ?? []
+        records = RegularFile.read(atPath: fileURL.path, maxBytes: Self.maxFileBytes, followingSymlinks: false).flatMap { try? decoder.decode([ScanRecord].self, from: $0) } ?? []
     }
 
     public static var defaultFileURL: URL {

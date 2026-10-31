@@ -64,8 +64,24 @@ struct ScannerTests {
         #expect(!Scanner.matches(regexes, "curl -o file http://x.example/data"))
     }
 
-    @Test func clipsLongDetails() {
-        let clipped = Scanner.clip(String(repeating: "a", count: 500))
-        #expect(clipped.count == Scanner.maxDetailLength + 1)
+    @Test func matchesOnlyTheCappedStartOfLongText() {
+        let regexes = Scanner.regexes(["evil-marker"])
+        let padding = String(repeating: "x", count: Scanner.maxMatchedLength - "evil-marker".count)
+        #expect(Scanner.matches(regexes, padding + "evil-marker"))
+        #expect(!Scanner.matches(regexes, padding + "x" + "evil-marker"))
+    }
+
+    @Test func capCountsUTF16UnitsNotCharacters() {
+        let regexes = Scanner.regexes(["evil-marker"])
+        let combining = "a" + String(repeating: "\u{301}", count: Scanner.maxMatchedLength)
+        #expect(!Scanner.matches(regexes, combining + "evil-marker"))
+    }
+
+    @Test func backtrackingPatternOnAMegabyteLineFinishesQuickly() {
+        let regexes = Scanner.regexes([#"\bn(c|cat)\b.*\s-(e|c)\s"#])
+        let line = String(repeating: "nc ", count: 1_000_000 / 3)
+        let clock = ContinuousClock()
+        let elapsed = clock.measure { #expect(!Scanner.matches(regexes, line)) }
+        #expect(elapsed < .seconds(5))
     }
 }

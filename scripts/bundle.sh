@@ -36,5 +36,5 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 identity=$(security find-identity -v -p codesigning | awk '/"Apple Development: /{print $2; exit}')
-codesign --force --sign "${identity:--}" "$app"
+codesign --force --options runtime --sign "${identity:--}" "$app"
 echo "$app"

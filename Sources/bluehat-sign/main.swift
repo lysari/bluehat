@@ -66,10 +66,18 @@ func keygen() {
 }
 
 func backupKeygen(_ path: String) {
-    guard !FileManager.default.fileExists(atPath: path) else { fail("\(path) already exists. Refusing to overwrite a key.") }
+    let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+    guard descriptor >= 0 else {
+        fail(errno == EEXIST ? "\(path) already exists. Refusing to overwrite a key." : "Cannot create \(path).")
+    }
     let key = Curve25519.Signing.PrivateKey()
-    let created = FileManager.default.createFile(atPath: path, contents: Data((key.rawRepresentation.base64EncodedString() + "\n").utf8), attributes: [.posixPermissions: 0o600])
-    guard created else { fail("Cannot write \(path).") }
+    let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    do {
+        try file.write(contentsOf: Data((key.rawRepresentation.base64EncodedString() + "\n").utf8))
+        try file.close()
+    } catch {
+        fail("Cannot write \(path).")
+    }
     print("Created backup signing key at \(path) (readable only by you). Keep it offline, for example on an encrypted USB drive, and never commit it.")
     describe(key)
 }
@@ -102,6 +110,11 @@ func sign(_ path: String, keyFile: String?) {
     }
     guard rulebook.version >= RuleFeed.minimumVersion else {
         fail("Refusing to sign: version \(rulebook.version) is below the app's minimum \(RuleFeed.minimumVersion).")
+    }
+    do {
+        try RuleFeed.checkDates(of: rulebook, now: issued)
+    } catch {
+        fail("Refusing to sign: \(error.localizedDescription)")
     }
     guard let signature = try? key.signature(for: payload) else { fail("Signing failed.") }
     let envelope = SignedEnvelope(rules: payload.base64EncodedString(), signature: signature.base64EncodedString())

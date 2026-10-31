@@ -19,7 +19,7 @@ public enum ScanSchedule: Int, Codable, Sendable, CaseIterable, Identifiable {
 
     public func nextScan(after lastScan: Date?, now: Date) -> Date? {
         guard let interval else { return nil }
-        guard let lastScan else { return now }
+        guard let lastScan, lastScan <= now else { return now }
         return lastScan.addingTimeInterval(interval)
     }
 

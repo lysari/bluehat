@@ -38,7 +38,7 @@ final class ScanStore {
 
     init(settings: SettingsStore) {
         self.settings = settings
-        lastScanAt = UserDefaults.standard.object(forKey: Key.lastScanAt) as? Date
+        lastScanAt = (UserDefaults.standard.object(forKey: Key.lastScanAt) as? Date).flatMap { $0 <= .now ? $0 : nil }
         scheduleTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.runScheduledScanIfDue()

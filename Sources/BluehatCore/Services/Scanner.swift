@@ -23,11 +23,12 @@ public struct Scanner: Sendable {
     static let maxExtensionIndexBytes = 10_000_000
     static let adHocSignatureFlag: UInt32 = 0x2
     static let maxReadBytes = 1_000_000
+    static let maxMatchedLength = 8_192
     static let maxHashedFileBytes = 50_000_000
     static let maxHashedFilesPerDirectory = 5_000
     static let maxHashDepth = 6
     static let hashChunkBytes = 1 << 20
-    static let maxDetailLength = 200
+    static let localePattern = "^[A-Za-z0-9_-]{1,16}$"
 
     public init() {}
 
@@ -57,7 +58,7 @@ public struct Scanner: Sendable {
             return rules.flatMap { rule in
                 let regexes = regexes(rule.patterns)
                 return launchItems.filter { matches(regexes, $0.command) || matches(regexes, $0.path) }.map {
-                    Finding(rule: rule, detail: clip($0.command), path: $0.path)
+                    Finding(rule: rule, detail: $0.command, path: $0.path)
                 }
             }
         case .shellProfile:
@@ -66,7 +67,7 @@ public struct Scanner: Sendable {
                 let regexes = regexes(rule.patterns)
                 return profiles.flatMap { profile in
                     profile.lines.filter { matches(regexes, $0) }.map {
-                        Finding(rule: rule, detail: clip($0), path: profile.path)
+                        Finding(rule: rule, detail: $0, path: profile.path)
                     }
                 }
             }
@@ -160,7 +161,7 @@ public struct Scanner: Sendable {
             let fingerprint = "SHA256:" + Data(SHA256.hash(data: blob)).base64EncodedString().replacingOccurrences(of: "=", with: "")
             let comment = fields.dropFirst(typeIndex + 2).joined(separator: " ")
             let options = typeIndex > 0 ? " · options: " + fields[..<typeIndex].joined(separator: " ") : ""
-            return (line, clip("\(fields[typeIndex]) \(fingerprint)" + (comment.isEmpty ? "" : " \(comment)") + options))
+            return (line, "\(fields[typeIndex]) \(fingerprint)" + (comment.isEmpty ? "" : " \(comment)") + options)
         }
     }
 
@@ -195,7 +196,7 @@ public struct Scanner: Sendable {
                 let versions = ((try? fileManager.contentsOfDirectory(atPath: "\(extensionsRoot)/\(id)")) ?? []).filter { !$0.hasPrefix(".") }
                 guard
                     let version = versions.max(by: { $0.compare($1, options: .numeric) == .orderedAscending }),
-                    let data = fileManager.contents(atPath: "\(extensionsRoot)/\(id)/\(version)/manifest.json"), data.count <= maxReadBytes,
+                    let data = RegularFile.read(atPath: "\(extensionsRoot)/\(id)/\(version)/manifest.json", maxBytes: maxReadBytes, followingSymlinks: true),
                     let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 else { return nil }
                 let directory = "\(extensionsRoot)/\(id)/\(version)"
@@ -211,7 +212,7 @@ public struct Scanner: Sendable {
         let profiles = (try? FileManager.default.contentsOfDirectory(atPath: profilesRoot)) ?? []
         return profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
             guard
-                let data = FileManager.default.contents(atPath: "\(profilesRoot)/\(profile)/extensions.json"), data.count <= maxExtensionIndexBytes,
+                let data = RegularFile.read(atPath: "\(profilesRoot)/\(profile)/extensions.json", maxBytes: maxExtensionIndexBytes, followingSymlinks: true),
                 let addons = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["addons"] as? [[String: Any]]
             else { return [] }
             return addons.compactMap { addon in
@@ -226,15 +227,22 @@ public struct Scanner: Sendable {
     }
 
     static func extensionRecord(browser: String, id: String, name: String, update: String, permissions: [String], path: String) -> (descriptor: String, detail: String, path: String) {
-        let descriptor = "browser=\(browser) id=\(id) name=\(name) update=\(update) permissions=\(permissions.joined(separator: ","))"
-        return (descriptor, clip("\(browser): \(name) (\(id))"), path)
+        let descriptor = "browser=\(descriptorField(browser)) id=\(descriptorField(id)) name=\(descriptorField(name)) update=\(descriptorField(update)) permissions=\(permissions.map(descriptorField).joined(separator: ","))"
+        return (descriptor, "\(browser): \(name) (\(id))", path)
+    }
+
+    static func descriptorField(_ value: String) -> String {
+        String(value.map { $0.isWhitespace ? "_" : $0 })
     }
 
     static func localizedName(_ name: String, manifest: [String: Any], directory: String) -> String {
-        guard name.hasPrefix("__MSG_"), name.hasSuffix("__"), let locale = manifest["default_locale"] as? String else { return name }
+        guard
+            name.hasPrefix("__MSG_"), name.hasSuffix("__"),
+            let locale = manifest["default_locale"] as? String, locale.range(of: localePattern, options: .regularExpression) != nil
+        else { return name }
         let key = String(name.dropFirst(6).dropLast(2)).lowercased()
         guard
-            let data = FileManager.default.contents(atPath: "\(directory)/_locales/\(locale)/messages.json"),
+            let data = RegularFile.read(atPath: "\(directory)/_locales/\(locale)/messages.json", maxBytes: maxReadBytes, followingSymlinks: false),
             let messages = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
             let entry = messages.first(where: { $0.key.lowercased() == key })?.value as? [String: Any],
             let message = entry["message"] as? String
@@ -277,7 +285,7 @@ public struct Scanner: Sendable {
         rules.flatMap { rule in
             let regexes = regexes(rule.patterns)
             return lines.filter { matches(regexes, $0) }.map {
-                Finding(rule: rule, detail: clip($0), path: nil)
+                Finding(rule: rule, detail: $0, path: nil)
             }
         }
     }
@@ -291,23 +299,17 @@ public struct Scanner: Sendable {
     }
 
     static func matches(_ regexes: [NSRegularExpression], _ text: String) -> Bool {
-        let range = NSRange(text.startIndex..., in: text)
-        return regexes.contains { $0.firstMatch(in: text, range: range) != nil }
+        let subject = String(decoding: text.utf16.prefix(maxMatchedLength), as: UTF16.self)
+        let range = NSRange(subject.startIndex..., in: subject)
+        return regexes.contains { $0.firstMatch(in: subject, range: range) != nil }
     }
 
     static func lines(of text: String) -> [String] {
         text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    static func clip(_ text: String) -> String {
-        text.count > maxDetailLength ? String(text.prefix(maxDetailLength)) + "…" : text
-    }
-
     static func readText(_ path: String) -> String {
-        guard let handle = FileHandle(forReadingAtPath: path) else { return "" }
-        defer { try? handle.close() }
-        let data = (try? handle.read(upToCount: maxReadBytes)) ?? Data()
-        return String(decoding: data, as: UTF8.self)
+        String(decoding: RegularFile.read(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true) ?? Data(), as: UTF8.self)
     }
 
     static func runTool(_ executable: String, _ arguments: [String]) -> String {
@@ -333,7 +335,7 @@ public struct Scanner: Sendable {
             return names.filter { $0.hasSuffix(".plist") }.compactMap { name in
                 let path = directory + "/" + name
                 guard
-                    let data = FileManager.default.contents(atPath: path), data.count <= maxReadBytes,
+                    let data = RegularFile.read(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true),
                     let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
                 else { return nil }
                 let program = plist["Program"] as? String
@@ -360,19 +362,21 @@ public struct Scanner: Sendable {
     static func hashedFiles(in directories: [String], budget: Int) -> (hashes: [String: String], notice: String?) {
         var hashes: [String: String] = [:]
         var skipped: [String] = []
-        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .addedToDirectoryDateKey, .creationDateKey]
+        let now = Date.now
         for directory in directories {
             guard let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: directory), includingPropertiesForKeys: keys) else { continue }
-            var candidates: [(url: URL, modified: Date)] = []
+            var candidates: [(url: URL, arrived: Date)] = []
             for case let url as URL in enumerator {
                 if enumerator.level > maxHashDepth { enumerator.skipDescendants() }
                 guard
                     let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                     (values.fileSize ?? 0) <= maxHashedFileBytes
                 else { continue }
-                candidates.append((url, values.contentModificationDate ?? .distantPast))
+                let arrived = values.addedToDirectoryDate ?? values.creationDate ?? .distantPast
+                candidates.append((url, arrived <= now ? arrived : .distantPast))
             }
-            let newest = candidates.sorted { $0.modified > $1.modified }.prefix(budget)
+            let newest = candidates.sorted { $0.arrived > $1.arrived }.prefix(budget)
             for candidate in newest {
                 hashes[candidate.url.path] = sha256(of: candidate.url)
             }
@@ -384,11 +388,13 @@ public struct Scanner: Sendable {
     }
 
     static func sha256(of url: URL) -> String? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
-        defer { try? handle.close() }
+        guard let file = RegularFile.open(atPath: url.path, followingSymlinks: false), file.size <= maxHashedFileBytes else { return nil }
+        defer { try? file.handle.close() }
         var hasher = SHA256()
-        while let chunk = try? handle.read(upToCount: hashChunkBytes), !chunk.isEmpty {
+        var remaining = file.size
+        while remaining > 0, let chunk = try? file.handle.read(upToCount: min(hashChunkBytes, remaining)), !chunk.isEmpty {
             hasher.update(data: chunk)
+            remaining -= chunk.count
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }

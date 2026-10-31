@@ -30,7 +30,7 @@ struct IgnoredSettingsTab: View {
                     }
                 }
             } footer: {
-                Text("An ignored finding stays hidden only while its exact details match, so a changed file, command or port shows up again. The panel always shows how many findings are ignored.")
+                Text("An ignored finding stays hidden only while its rule, full details and location match exactly, so a changed or different file, command, launch item or port shows up again. The panel always shows how many findings are ignored.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }

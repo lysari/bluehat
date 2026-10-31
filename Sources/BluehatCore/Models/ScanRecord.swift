@@ -8,7 +8,7 @@ public struct ScanRecord: Codable, Sendable, Identifiable, Equatable {
         public let detail: String
 
         public var id: String {
-            Finding.fingerprint(ruleID: ruleID, detail: detail)
+            ruleID + "|" + detail
         }
     }
 

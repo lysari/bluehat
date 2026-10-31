@@ -49,6 +49,8 @@ public struct Rule: Codable, Sendable, Identifiable {
 public struct Rulebook: Codable, Sendable, SignedPayload {
     public static let supportedSchema = 1
     public static let validity: TimeInterval = 365 * 24 * 3600
+    public static let maxValidity: TimeInterval = 400 * 24 * 3600
+    public static let versionDateFormat = "yyyyMMdd'99'"
     public static let expiryWarning: TimeInterval = 30 * 24 * 3600
     static let maxRules = 500
     static let maxEntriesPerRule = 200

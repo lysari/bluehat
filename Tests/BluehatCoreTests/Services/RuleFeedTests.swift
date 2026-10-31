@@ -9,10 +9,19 @@ struct RuleFeedTests {
     let feedKey = Curve25519.Signing.PrivateKey()
     let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
     let cacheDirectory = FileManager.default.temporaryDirectory.appending(path: "bluehat-feed-\(UUID().uuidString)")
+    let day: TimeInterval = 24 * 3600
 
-    func payload(version: Int = 5, expires: String? = nil, schema: Int = 1) -> Data {
-        let expiresField = expires.map { #", "expires": "\#($0)""# } ?? ""
-        return Data(#"{"schema": \#(schema), "version": \#(version)\#(expiresField), "rules": []}"#.utf8)
+    func dateFields(issued: Date?, expires: Date?) -> String {
+        let formatter = ISO8601DateFormatter()
+        let issuedField = issued.map { #", "issued": "\#(formatter.string(from: $0))""# } ?? ""
+        let expiresField = expires.map { #", "expires": "\#(formatter.string(from: $0))""# } ?? ""
+        return issuedField + expiresField
+    }
+
+    func payload(version: Int = 5, issued: Date? = nil, expires: Date? = nil, omitting missing: String? = nil, schema: Int = 1) -> Data {
+        let issued = missing == "issued" ? nil : issued ?? now
+        let expires = missing == "expires" ? nil : expires ?? now.addingTimeInterval(30 * day)
+        return Data(#"{"schema": \#(schema), "version": \#(version)\#(dateFields(issued: issued, expires: expires)), "rules": []}"#.utf8)
     }
 
     func envelope(_ payload: Data, signedBy signer: Curve25519.Signing.PrivateKey) throws -> Data {
@@ -24,10 +33,34 @@ struct RuleFeedTests {
         try RuleFeed.open(envelope: envelope, publicKeys: [key.publicKey, backupKey.publicKey], minimumVersion: minimumVersion, now: now)
     }
 
-    func feedPayload(version: Int = 202610310317, expires: Date? = nil) -> Data {
-        let expiresText = ISO8601DateFormatter().string(from: expires ?? now.addingTimeInterval(7 * 24 * 3600))
+    func feedPayload(version: Int = 1, issued: Date? = nil, expires: Date? = nil, omitting missing: String? = nil) -> Data {
+        let issued = missing == "issued" ? nil : issued ?? now
+        let expires = missing == "expires" ? nil : expires ?? now.addingTimeInterval(7 * day)
         let hash = String(repeating: "a", count: 64)
-        return Data(#"{"schema": 1, "version": \#(version), "issued": "2026-10-31T03:17:00Z", "expires": "\#(expiresText)", "source": "MalwareBazaar", "hashes": [{"sha256": "\#(hash)", "family": "AMOS", "firstSeen": "2026-10-30"}]}"#.utf8)
+        return Data(#"{"schema": 1, "version": \#(version)\#(dateFields(issued: issued, expires: expires)), "source": "MalwareBazaar", "hashes": [{"sha256": "\#(hash)", "family": "AMOS", "firstSeen": "2026-10-30"}]}"#.utf8)
+    }
+
+    func openFeed(_ payload: Data) throws(RuleFeedError) -> MalwareFeed {
+        try RuleFeed.open(envelope: try! envelope(payload, signedBy: feedKey), publicKeys: [feedKey.publicKey], minimumVersion: 0, now: now)
+    }
+
+    func version(_ date: Date, format: String) -> Int {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .gmt
+        formatter.dateFormat = format
+        return Int(formatter.string(from: date))!
+    }
+
+    func openPublished<Payload: SignedPayload>(_ name: String, from feed: RuleFeed, as type: Payload.Type) throws -> Payload {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appending(components: "rules", name)
+        let data = try Data(contentsOf: url)
+        let signed = try JSONDecoder().decode(SignedEnvelope.self, from: data)
+        let payload = try #require(Data(base64Encoded: signed.rules))
+        let issued = try #require(try Payload.decodePayload(payload).issued)
+        return try RuleFeed.open(envelope: data, publicKeys: feed.publicKeys, minimumVersion: feed.minimumVersion, now: issued)
     }
 
     func rulesFeed() -> RuleFeed {
@@ -73,13 +106,66 @@ struct RuleFeedTests {
 
     @Test func rejectsExpiredRules() throws {
         let expires = now.addingTimeInterval(-60)
-        let data = try envelope(payload(expires: ISO8601DateFormatter().string(from: expires)), signedBy: key)
+        let data = try envelope(payload(issued: now.addingTimeInterval(-day), expires: expires), signedBy: key)
         #expect(throws: RuleFeedError.expired(expires)) { try open(data) }
     }
 
     @Test func acceptsRulesBeforeTheyExpire() throws {
-        let future = ISO8601DateFormatter().string(from: now.addingTimeInterval(60))
-        #expect(try open(envelope(payload(expires: future), signedBy: key)).expires != nil)
+        #expect(try open(envelope(payload(expires: now.addingTimeInterval(60)), signedBy: key)).expires != nil)
+    }
+
+    @Test(arguments: ["issued", "expires"])
+    func rejectsRulesAndFeedWithoutDates(missing: String) throws {
+        #expect(throws: RuleFeedError.missingDates) { try open(envelope(payload(omitting: missing), signedBy: key)) }
+        #expect(throws: RuleFeedError.missingDates) { try openFeed(feedPayload(omitting: missing)) }
+    }
+
+    @Test func rejectsFilesIssuedMoreThanADayAhead() throws {
+        let tomorrow = now.addingTimeInterval(day - 60)
+        let ahead = now.addingTimeInterval(day + 60)
+        #expect(try open(envelope(payload(issued: tomorrow), signedBy: key)).version == 5)
+        #expect(throws: RuleFeedError.issuedInFuture(ahead)) { try open(envelope(payload(issued: ahead), signedBy: key)) }
+        #expect(throws: RuleFeedError.issuedInFuture(ahead)) { try openFeed(feedPayload(issued: ahead)) }
+    }
+
+    @Test func rejectsRulesValidForMoreThan400Days() throws {
+        #expect(try open(envelope(payload(expires: now.addingTimeInterval(Rulebook.maxValidity)), signedBy: key)).version == 5)
+        #expect(throws: RuleFeedError.validityTooLong) { try open(envelope(payload(expires: now.addingTimeInterval(Rulebook.maxValidity + 60)), signedBy: key)) }
+        #expect(Rulebook.maxValidity == 400 * day)
+    }
+
+    @Test func rejectsFeedValidForMoreThan8Days() throws {
+        #expect(try openFeed(feedPayload(expires: now.addingTimeInterval(MalwareFeed.maxValidity))).hashes.count == 1)
+        #expect(throws: RuleFeedError.validityTooLong) { try openFeed(feedPayload(expires: now.addingTimeInterval(MalwareFeed.maxValidity + 60))) }
+        #expect(MalwareFeed.maxValidity == 8 * day)
+    }
+
+    @Test func rejectsRulesVersionAheadOfTheIssueDate() throws {
+        let latest = version(now.addingTimeInterval(day), format: "yyyyMMdd") * 100 + 99
+        #expect(try open(envelope(payload(version: latest), signedBy: key)).version == latest)
+        #expect(throws: RuleFeedError.versionAheadOfIssueDate(latest + 1)) { try open(envelope(payload(version: latest + 1), signedBy: key)) }
+        #expect(throws: RuleFeedError.versionAheadOfIssueDate(9_999_999_999)) { try open(envelope(payload(version: 9_999_999_999), signedBy: key)) }
+    }
+
+    @Test func rejectsFeedVersionAheadOfTheIssueDate() throws {
+        let latest = version(now.addingTimeInterval(day), format: "yyyyMMddHHmm")
+        #expect(try openFeed(feedPayload(version: latest)).version == latest)
+        #expect(throws: RuleFeedError.versionAheadOfIssueDate(latest + 1)) { try openFeed(feedPayload(version: latest + 1)) }
+    }
+
+    @Test func publishedRulesAndFeedPassTheChecks() throws {
+        let rules = try openPublished("rules.signed.json", from: .rulebook, as: Rulebook.self)
+        let feed = try openPublished("feed.signed.json", from: .malwareFeed, as: MalwareFeed.self)
+        #expect(rules.version >= RuleFeed.minimumVersion)
+        #expect(!feed.hashes.isEmpty)
+    }
+
+    @Test func downloadsGiveUpAfterAMinute() {
+        let configuration = RuleFeed.sessionConfiguration
+        #expect(configuration.timeoutIntervalForRequest == 15)
+        #expect(configuration.timeoutIntervalForResource == 60)
+        #expect(configuration.httpCookieStorage == nil)
+        #expect(configuration.urlCredentialStorage == nil)
     }
 
     @Test func rulesSignedByTheFeedKeyAreRejected() throws {

@@ -41,7 +41,7 @@ struct AboutSettingsTab: View {
             }
             Section {
                 LabeledContent("Fingerprints", value: store.malwareFeed.map { $0.hashes.count.formatted() } ?? "Not loaded yet")
-                LabeledContent("Last updated", value: store.malwareFeed?.issued.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
+                LabeledContent("Last updated", value: store.malwareFeed?.issued?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
                 LabeledContent("Expires", value: store.malwareFeed?.expires?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
                 LabeledContent("Feed key") {
                     Text(RuleFeed.fingerprint(of: RuleFeed.feedKey))

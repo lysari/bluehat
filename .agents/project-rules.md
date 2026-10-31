@@ -12,7 +12,8 @@
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
 │   ├── Models/                  # Rule, Rulebook, MalwareFeed, Finding, IgnoredFinding, ScanSchedule, ScanRecord
-│   └── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ScanHistory (saved scans)
+│   ├── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ScanHistory (saved scans)
+│   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads)
 ├── Bluehat/                     # menu bar app
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
 │   ├── Stores/                  # @Observable state: ScanStore, SettingsStore
@@ -39,6 +40,7 @@ rules/                           # git submodule: lysari/bluehat-rules (clone wi
 ## Core Shared Helpers (Do Not Duplicate)
 - Rule download and verification: `RuleFeed`
 - Running system tools and matching text: `Scanner.runTool`, `Scanner.regexes`, `Scanner.matches`
+- Reading any file an attacker can influence: `RegularFile.read` / `RegularFile.open` (never `FileHandle(forReadingAtPath:)`, `FileManager.contents` or `Data(contentsOf:)`)
 
 ## UI & Styling Conventions
 - Framework: SwiftUI

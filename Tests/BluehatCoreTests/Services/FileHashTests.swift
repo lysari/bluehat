@@ -30,15 +30,41 @@ struct FileHashTests {
         #expect(hashed.hashes.count == 3)
     }
 
-    @Test func prefersNewestFilesOverBudget() throws {
+    @Test func prefersNewestArrivalsOverBudget() throws {
         defer { try? FileManager.default.removeItem(at: root) }
-        try write("old", to: "old.txt", modified: .now - 3_600)
-        try write("newer", to: "newer.txt", modified: .now - 60)
-        try write("abc", to: "newest.txt")
+        try write("old", to: "old.txt")
+        try write("newer", to: "newer.txt", modified: .now - 3_600)
+        try write("abc", to: "newest.txt", modified: .distantPast)
 
         let hashed = Scanner.hashedFiles(in: [root.path], budget: 2)
 
         #expect(Set(hashesByName(hashed.hashes).keys) == ["newer.txt", "newest.txt"])
+    }
+
+    @Test func futureDatedDecoysDoNotCrowdOutANewFile() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let future = Date.now.addingTimeInterval(365 * 24 * 3600)
+        for index in 0..<5 {
+            try write("decoy \(index)", to: "decoy-\(index).txt", modified: future)
+            try FileManager.default.setAttributes([.creationDate: future], ofItemAtPath: root.appending(path: "decoy-\(index).txt").path)
+        }
+        try write("abc", to: "match.bin", modified: .now - 3_600)
+
+        let hashed = Scanner.hashedFiles(in: [root.path], budget: 1)
+
+        #expect(hashesByName(hashed.hashes) == ["match.bin": abcHash])
+    }
+
+    @Test func skipsSymlinksAndFifos() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("abc", to: "real.bin")
+        try FileManager.default.createSymbolicLink(atPath: root.appending(path: "link.bin").path, withDestinationPath: root.appending(path: "real.bin").path)
+        #expect(mkfifo(root.appending(path: "pipe").path, 0o600) == 0)
+
+        let hashed = Scanner.hashedFiles(in: [root.path], budget: 10)
+
+        #expect(hashesByName(hashed.hashes) == ["real.bin": abcHash])
+        #expect(Scanner.sha256(of: root.appending(path: "link.bin")) == nil)
     }
 
     @Test func reportsSkippedFilesPerFolder() throws {

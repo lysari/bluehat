@@ -14,6 +14,12 @@ struct ScanScheduleTests {
         #expect(ScanSchedule.daily.isDue(lastScan: nil, now: now))
     }
 
+    @Test func lastScanInTheFutureCountsAsNoScan() {
+        let future = now.addingTimeInterval(365 * 24 * 3600)
+        #expect(ScanSchedule.daily.isDue(lastScan: future, now: now))
+        #expect(ScanSchedule.daily.nextScan(after: future, now: now) == now)
+    }
+
     @Test func dueOnlyAfterInterval() {
         let lastScan = now.addingTimeInterval(-5 * 3600)
         #expect(!ScanSchedule.everySixHours.isDue(lastScan: lastScan, now: now))

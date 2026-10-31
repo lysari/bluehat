@@ -12,7 +12,10 @@ public struct SignedEnvelope: Codable, Sendable {
 }
 
 public protocol SignedPayload: Sendable {
+    static var maxValidity: TimeInterval { get }
+    static var versionDateFormat: String { get }
     var version: Int { get }
+    var issued: Date? { get }
     var expires: Date? { get }
     static func decodePayload(_ data: Data) throws(RuleFeedError) -> Self
 }
@@ -32,6 +35,10 @@ public enum RuleFeedError: LocalizedError, Equatable {
     case rollback(cached: Int, received: Int)
     case outdated(Int)
     case expired(Date)
+    case missingDates
+    case issuedInFuture(Date)
+    case validityTooLong
+    case versionAheadOfIssueDate(Int)
 
     public var errorDescription: String? {
         switch self {
@@ -44,6 +51,10 @@ public enum RuleFeedError: LocalizedError, Equatable {
         case .rollback(let cached, let received): "Received an older version (v\(received)) than the verified copy (v\(cached))."
         case .outdated(let version): "Rules v\(version) are older than this version of Bluehat accepts. Sign and push new rules."
         case .expired(let date): "The signed file expired on \(date.formatted(date: .abbreviated, time: .shortened)). Sign and push a new one."
+        case .missingDates: "The signed file has no issue or expiry date."
+        case .issuedInFuture(let date): "The signed file says it was issued on \(date.formatted(date: .abbreviated, time: .shortened)), which is in the future. Check the Mac's date and time."
+        case .validityTooLong: "The signed file is valid for longer than allowed."
+        case .versionAheadOfIssueDate(let version): "Version v\(version) is newer than the file's issue date allows."
         }
     }
 }
@@ -57,6 +68,8 @@ public struct RuleFeed: Sendable {
     public static let feedKey = publicKey("srVF3Dxj32r6pMW0M+0MMsUdr75RyoD94CafL7iFnoE=")
     public static let minimumVersion = 2026103008
     static let requestTimeout: TimeInterval = 15
+    static let downloadTimeout: TimeInterval = 60
+    static let dateTolerance: TimeInterval = 24 * 3600
     static let cacheDirectory = URL.applicationSupportDirectory.appending(component: "Bluehat")
 
     public static let rulebook = RuleFeed(
@@ -99,7 +112,7 @@ public struct RuleFeed: Sendable {
     }
 
     func accept<Payload: SignedPayload>(_ remote: Result<Data, RuleFeedError>, as type: Payload.Type, now: Date) throws(RuleFeedError) -> LoadedFeed<Payload> {
-        let cached = try? Data(contentsOf: cacheURL)
+        let cached = RegularFile.read(atPath: cacheURL.path, maxBytes: maxEnvelopeBytes, followingSymlinks: false)
         let cachedPayload: Payload? = cached.flatMap { try? Self.open(envelope: $0, publicKeys: publicKeys, minimumVersion: minimumVersion, now: now) }
         do throws(RuleFeedError) {
             let envelope = try remote.get()
@@ -125,17 +138,38 @@ public struct RuleFeed: Sendable {
         else { throw .badSignature }
         let opened = try Payload.decodePayload(payload)
         guard opened.version >= minimumVersion else { throw .outdated(opened.version) }
-        if let expires = opened.expires, expires <= now { throw .expired(expires) }
+        try checkDates(of: opened, now: now)
         return opened
     }
 
-    private func download() async throws(RuleFeedError) -> Data {
+    public static func checkDates<Payload: SignedPayload>(of payload: Payload, now: Date) throws(RuleFeedError) {
+        guard let issued = payload.issued, let expires = payload.expires else { throw .missingDates }
+        guard issued <= now.addingTimeInterval(dateTolerance) else { throw .issuedInFuture(issued) }
+        guard expires.timeIntervalSince(issued) <= Payload.maxValidity else { throw .validityTooLong }
+        guard payload.version <= latestVersion(issued: issued, format: Payload.versionDateFormat) else { throw .versionAheadOfIssueDate(payload.version) }
+        guard expires > now else { throw .expired(expires) }
+    }
+
+    static func latestVersion(issued: Date, format: String) -> Int {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .gmt
+        formatter.dateFormat = format
+        return Int(formatter.string(from: issued.addingTimeInterval(dateTolerance))) ?? 0
+    }
+
+    static var sessionConfiguration: URLSessionConfiguration {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        configuration.timeoutIntervalForRequest = Self.requestTimeout
+        configuration.timeoutIntervalForRequest = requestTimeout
+        configuration.timeoutIntervalForResource = downloadTimeout
         configuration.httpCookieStorage = nil
         configuration.urlCredentialStorage = nil
-        let session = URLSession(configuration: configuration, delegate: RedirectBlocker(), delegateQueue: nil)
+        return configuration
+    }
+
+    private func download() async throws(RuleFeedError) -> Data {
+        let session = URLSession(configuration: Self.sessionConfiguration, delegate: RedirectBlocker(), delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
 
         do {
