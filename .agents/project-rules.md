@@ -55,7 +55,7 @@ rules/                           # git submodule: lysari/bluehat-rules (clone wi
 - Test: `devbox run test`
 - Bundle: `devbox run bundle`
 - Install: `devbox run install`
-- Release: `devbox run release`
+- Release: `devbox run release`, then publish as a GitHub Release following SKILL.md › Make a release
 
 ## Decisions
 - Stack: Swift + SwiftUI, answered 2026-10-30

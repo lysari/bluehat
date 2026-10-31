@@ -43,7 +43,10 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 
 1. Raise `version` (and `build`) at the top of `scripts/bundle.sh`. It is the only place the version is set; the DMG name and the About tab read it from there.
 2. Run `devbox run release`. It builds an arm64 + x86_64 app, signs the app and the DMG with your Apple Development identity (ad-hoc and an unsigned DMG when there is none), checks both, and writes `.build/dist/Bluehat-<version>.dmg` with `Bluehat.app`, an `Applications` link to drag onto, and `How to open Bluehat.txt`. It never installs, opens or uploads anything.
-3. Upload the DMG yourself and publish the SHA-256 the command prints beside it.
+3. Commit and push the version bump, so the release tag points at the code in the DMG.
+4. Take the checksum from the file you are about to upload, right before uploading: `shasum -a 256 .build/dist/Bluehat-<version>.dmg`. A later `devbox run release` rebuilds the DMG with a new signing time and a new checksum.
+5. Publish it as a GitHub Release of `lysari/bluehat`, never as a file committed to git: `gh release create v<version> .build/dist/Bluehat-<version>.dmg -R lysari/bluehat --target main --title "Bluehat <version>" --notes-file <notes.md>`. The notes hold what changed, the requirements, the install and Open Anyway steps, and the SHA-256 (see the `v1.0` release for the layout).
+6. Check the published file: `gh release download v<version> -R lysari/bluehat -D <empty dir>`, then compare its `shasum -a 256` with the notes.
 
 The app is not Developer ID signed or notarized, so recipients see "Apple could not verify" the first time. They drag Bluehat into Applications, double-click it, click Done, then open System Settings › Privacy & Security and click **Open Anyway** next to the Bluehat message, and confirm. They need macOS 26 or later. Rules update by themselves; app updates mean downloading the new DMG.
 
