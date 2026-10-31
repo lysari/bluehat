@@ -16,7 +16,7 @@ extension CheckKind {
         case .appSignature: "App signing"
         case .sshKey: "SSH keys"
         case .profile: "Profiles"
-        case .browserExtension: "Browser extensions"
+        case .browserExtension: "Extensions"
         }
     }
 

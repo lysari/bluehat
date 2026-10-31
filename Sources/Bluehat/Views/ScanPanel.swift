@@ -183,6 +183,7 @@ struct ScanPanel: View {
                 ScrollView { findingRows }
             }
             .frame(maxHeight: Metrics.findingsMaxHeight)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, Metrics.cardPadding)
             .card()
         }
