@@ -25,6 +25,7 @@ final class ScanStore {
     private(set) var findings: [Finding] = []
     private(set) var finishedAreas: Set<CheckKind> = []
     private(set) var rulebook: Rulebook?
+    private(set) var malwareFeed: MalwareFeed?
     private(set) var notice: String?
     private(set) var failure: String?
     private(set) var scanDuration: Duration?
@@ -83,8 +84,8 @@ final class ScanStore {
         visibleFindings.filter { $0.rule.severity == .info }
     }
 
-    var rulesAreStale: Bool {
-        rulebook?.isStale(now: .now) ?? false
+    var rulesExpireSoon: Bool {
+        rulebook?.expiresSoon(now: .now) ?? false
     }
 
     var nextScheduledScan: Date? {
@@ -101,18 +102,22 @@ final class ScanStore {
         failure = nil
         notice = nil
         do {
-            let loaded = try await RuleFeed().load()
-            rulebook = loaded.rulebook
-            let unsupported = loaded.rulebook.unsupportedRuleCount
+            async let loadedFeed = Self.loadMalwareFeed()
+            let loaded = try await RuleFeed.rulebook.load(Rulebook.self)
+            let feedResult = await loadedFeed
+            malwareFeed = try? feedResult.get().payload
+            let rulebook = loaded.payload.appending(malwareFeed?.rules ?? [])
+            self.rulebook = rulebook
+            let unsupported = loaded.payload.unsupportedRuleCount
             let messages = [
                 loaded.remoteError.map { "Using last verified rules. \($0.localizedDescription)" },
+                Self.feedNotice(feedResult),
                 unsupported == 0 ? nil : unsupported == 1 ? "1 rule needs a newer version of Bluehat and was skipped." : "\(unsupported) rules need a newer version of Bluehat and were skipped.",
             ].compactMap { $0 }
             notice = messages.isEmpty ? nil : messages.joined(separator: " ")
             findings = []
             finishedAreas = []
             phase = .scanning
-            let rulebook = loaded.rulebook
             let clock = ContinuousClock()
             let start = clock.now
             let sortedFindings = await Task.detached(priority: .userInitiated) {
@@ -129,6 +134,23 @@ final class ScanStore {
         } catch {
             failure = error.localizedDescription
             phase = .idle
+        }
+    }
+
+    nonisolated private static func loadMalwareFeed() async -> Result<LoadedFeed<MalwareFeed>, RuleFeedError> {
+        do {
+            return .success(try await RuleFeed.malwareFeed.load(MalwareFeed.self))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private static func feedNotice(_ result: Result<LoadedFeed<MalwareFeed>, RuleFeedError>) -> String? {
+        switch result {
+        case .success(let loaded):
+            loaded.remoteError.map { "Using last verified malware fingerprints. \($0.localizedDescription)" }
+        case .failure(let error):
+            "Malware fingerprints unavailable, scanning with the rules only. \(error.localizedDescription)"
         }
     }
 

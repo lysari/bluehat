@@ -39,8 +39,8 @@ struct ScanPanel: View {
                     .foregroundStyle(Palette.notice)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if store.rulesAreStale, let issued = store.rulebook?.issued {
-                Label("Rules were signed \(issued.formatted(.relative(presentation: .named)))\(store.rulebook?.expires.map { " and expire on \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""). Sign and push new rules, or check that nothing is blocking updates.", systemImage: "clock.badge.exclamationmark")
+            if store.rulesExpireSoon, let expires = store.rulebook?.expires {
+                Label("Rules expire \(expires.formatted(.relative(presentation: .named))), on \(expires.formatted(date: .abbreviated, time: .omitted)). Sign and push new rules, or check that nothing is blocking updates.", systemImage: "clock.badge.exclamationmark")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.notice)
                     .fixedSize(horizontal: false, vertical: true)

@@ -84,17 +84,35 @@ struct RuleTests {
         #expect(throws: RulebookError.self) { try Rulebook.decode(from: data) }
     }
 
-    @Test func decodesIssuedDateAndDetectsStaleRules() throws {
-        let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "rules": []}"#.utf8)
+    @Test func signedRulesAreValidForAYearAndWarnInTheLast30Days() throws {
+        let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "expires": "2027-10-01T00:00:00Z", "rules": []}"#.utf8)
         let rulebook = try Rulebook.decode(from: data)
         let issued = try #require(rulebook.issued)
-        #expect(!rulebook.isStale(now: issued.addingTimeInterval(Rulebook.staleAfter - 60)))
-        #expect(rulebook.isStale(now: issued.addingTimeInterval(Rulebook.staleAfter + 60)))
+        let expires = try #require(rulebook.expires)
+        let day: TimeInterval = 24 * 3600
+        #expect(Rulebook.validity == 365 * day)
+        #expect(Rulebook.expiryWarning == 30 * day)
+        #expect(expires == issued.addingTimeInterval(Rulebook.validity))
+        #expect(!rulebook.expiresSoon(now: issued))
+        #expect(!rulebook.expiresSoon(now: issued.addingTimeInterval(334 * day)))
+        #expect(!rulebook.expiresSoon(now: expires.addingTimeInterval(-Rulebook.expiryWarning - 60)))
+        #expect(rulebook.expiresSoon(now: expires.addingTimeInterval(-Rulebook.expiryWarning + 60)))
+        #expect(rulebook.expiresSoon(now: expires.addingTimeInterval(-60)))
     }
 
-    @Test func rulesWithoutIssuedDateAreNeverStale() throws {
+    @Test func rulesWithoutExpiryNeverWarn() throws {
         let rulebook = try Rulebook.decode(from: rulebookJSON(""))
-        #expect(!rulebook.isStale(now: .distantFuture))
+        #expect(!rulebook.expiresSoon(now: .distantFuture))
+    }
+
+    @Test func appendingKeepsRulebookMetadata() throws {
+        let data = Data(#"{"schema": 1, "version": 7, "expires": "2027-10-01T00:00:00Z", "rules": [\#(rule(check: "setting", #""setting": "sip""#))]}"#.utf8)
+        let rulebook = try Rulebook.decode(from: data)
+        let extra = try Rulebook.decode(from: rulebookJSON(rule(check: "path", #""paths": ["/x"]"#, id: "extra.rule"))).rules
+        let merged = rulebook.appending(extra)
+        #expect(merged.rules.map(\.id) == ["test.rule", "extra.rule"])
+        #expect(merged.version == 7)
+        #expect(merged.expires == rulebook.expires)
     }
 
     @Test func publishedStarterRulesAreValid() throws {

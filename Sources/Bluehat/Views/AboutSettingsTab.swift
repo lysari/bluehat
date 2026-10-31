@@ -29,7 +29,7 @@ struct AboutSettingsTab: View {
                 LabeledContent("Verified version", value: store.rulebook.map { String($0.version) } ?? "Not loaded yet")
                 LabeledContent("Signed", value: store.rulebook?.issued?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
                 LabeledContent("Expires", value: store.rulebook?.expires?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
-                LabeledContent(RuleFeed.trustedKeys.count == 1 ? "Trusted key" : "Trusted keys") {
+                LabeledContent(RuleFeed.trustedKeys.count == 1 ? "Rules key" : "Rules keys") {
                     VStack(alignment: .trailing, spacing: Metrics.spaceTight) {
                         ForEach(RuleFeed.trustedKeys.map(RuleFeed.fingerprint(of:)), id: \.self) { fingerprint in
                             Text(fingerprint)
@@ -38,6 +38,22 @@ struct AboutSettingsTab: View {
                         }
                     }
                 }
+            }
+            Section {
+                LabeledContent("Fingerprints", value: store.malwareFeed.map { $0.hashes.count.formatted() } ?? "Not loaded yet")
+                LabeledContent("Last updated", value: store.malwareFeed?.issued.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
+                LabeledContent("Expires", value: store.malwareFeed?.expires?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
+                LabeledContent("Feed key") {
+                    Text(RuleFeed.fingerprint(of: RuleFeed.feedKey))
+                        .font(Typography.detail)
+                        .textSelection(.enabled)
+                }
+            } header: {
+                Text("Malware fingerprints")
+            } footer: {
+                Text("Updated daily from MalwareBazaar. The feed key can sign only the fingerprints, never the rules; the rules keys can sign both.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.secondaryText)
             }
         }
         .formStyle(.grouped)

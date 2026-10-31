@@ -1,6 +1,6 @@
 # Bluehat Roadmap
 
-Updated 2026-10-30. Each phase ships as a working app; later phases depend on the earlier ones being done.
+Updated 2026-10-31. Each phase ships as a working app; later phases depend on the earlier ones being done.
 
 ## Phase 0: Foundation (done)
 
@@ -30,7 +30,7 @@ Updated 2026-10-30. Each phase ships as a working app; later phases depend on th
 - [x] Scheduled background scans (off, 1, 6, 12, 24 h) with a notification only for new issues
 - [x] Ignore list per exact finding, stored locally, reviewable in Settings, count always shown
 - [x] Scan history: last 30 scans with what changed between them
-- [x] Warn when the verified rules were signed more than 14 days ago (signed `issued` time; blocks a freeze attack, where updates are silently held back)
+- [x] Warn when the verified rules expire within 30 days (signed `expires`; blocks a freeze attack, where updates are silently held back)
 
 ## Phase 3: Detection depth (in progress)
 
@@ -53,14 +53,15 @@ Rule content:
 - [x] Current stealer indicators from primary reports: AMOS backdoor (Trend Micro), CrashStealer (Jamf), ClickLock (RH-ISAC), Sapphire Sleet (Microsoft), ICMacOS (SOCRadar)
 - [x] Behaviour rules: stealer upload/zip/fake password prompt/`curl | osascript`, stealer backdoor processes, Apple-named launch items outside /System
 - [ ] Indicators for Poseidon, Banshee, Odyssey and SHub from their primary reports (SHub's `com.google.keystone.agent.plist` collides with Google's real updater, so it needs a program-path rule, not a file-path rule)
-- [ ] SHA-256 hashes of current macOS malware samples
+- [x] SHA-256 hashes of current macOS malware samples: daily MalwareBazaar fingerprint feed (`feed.signed.json`), one critical rule per family, optional so a missing feed never blocks a scan
 - [x] `summary`, `remedy` and `references` fields per rule
 
 ## Phase 4: Rule supply chain hardening (in progress)
 
 - [x] Several trusted public keys, `backup-keygen` for an offline backup key, `sign --key-file`, rotation runbook in the rules README
 - [x] Offline backup key (fingerprint 45:F7:3C:B2:FC:D3:CE:3E) trusted by the app and CI
-- [x] Signed `expires` (30 days), refused when past, cache included; minimum accepted version 2026103008
+- [x] Signed `expires` (365 days for hand-written rules, re-signed at least yearly), refused when past, cache included; minimum accepted version 2026103008
+- [x] Separate CI feed key (fingerprint 53:7F:76:5A:31:22:FD:35) that signs only the daily fingerprint feed and is never accepted for rules
 - [x] `Verify rules` GitHub Action: signature, match with `rules.json`, stamps, expiry, unique ids, version bump (signing stays on your Mac)
 - [ ] Branch protection and required 2FA on the rules repo
 - [x] Signing key saved to Keychain through stdin, never on the command line

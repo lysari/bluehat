@@ -46,10 +46,10 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let references: [String]?
 }
 
-public struct Rulebook: Codable, Sendable {
+public struct Rulebook: Codable, Sendable, SignedPayload {
     public static let supportedSchema = 1
-    public static let staleAfter: TimeInterval = 14 * 24 * 3600
-    public static let validity: TimeInterval = 30 * 24 * 3600
+    public static let validity: TimeInterval = 365 * 24 * 3600
+    public static let expiryWarning: TimeInterval = 30 * 24 * 3600
     static let maxRules = 500
     static let maxEntriesPerRule = 200
     static let maxPatternLength = 256
@@ -82,8 +82,22 @@ public struct Rulebook: Codable, Sendable {
         return rulebook
     }
 
-    public func isStale(now: Date) -> Bool {
-        issued.map { now.timeIntervalSince($0) > Self.staleAfter } ?? false
+    public static func decodePayload(_ data: Data) throws(RuleFeedError) -> Rulebook {
+        do {
+            return try decode(from: data)
+        } catch let error as RulebookError {
+            throw .invalidRules(error)
+        } catch {
+            throw .invalidRules(.malformed)
+        }
+    }
+
+    public func expiresSoon(now: Date) -> Bool {
+        expires.map { $0.timeIntervalSince(now) <= Self.expiryWarning } ?? false
+    }
+
+    public func appending(_ extraRules: [Rule]) -> Rulebook {
+        Rulebook(schema: schema, version: version, rules: rules + extraRules, issued: issued, expires: expires, unsupportedRuleCount: unsupportedRuleCount)
     }
 
     func validate() throws {

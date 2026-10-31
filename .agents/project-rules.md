@@ -11,8 +11,8 @@
 ```text
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
-│   ├── Models/                  # Rule, Rulebook, Finding, IgnoredFinding, ScanSchedule, ScanRecord
-│   └── Services/                # RuleFeed (download + verify), Scanner (checks), ScanHistory (saved scans)
+│   ├── Models/                  # Rule, Rulebook, MalwareFeed, Finding, IgnoredFinding, ScanSchedule, ScanRecord
+│   └── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ScanHistory (saved scans)
 ├── Bluehat/                     # menu bar app
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
 │   ├── Stores/                  # @Observable state: ScanStore, SettingsStore
