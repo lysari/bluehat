@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-version=1.0
+version=1.1
 build=1
 
 case "${1:-}" in
