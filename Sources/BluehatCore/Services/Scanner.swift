@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Network
 import Security
 import Synchronization
 
@@ -43,6 +44,11 @@ public struct Scanner: Sendable {
     static let firefoxSignedState = 2
     static let maxExtensionIndexBytes = 10_000_000
     static let adHocSignatureFlag: UInt32 = 0x2
+    static let developerIDRequirement = "anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] and certificate leaf[field.1.2.840.113635.100.6.1.13]"
+    static let notarizedRequirement = "notarized"
+    static let maxNotarizationAssessments = 5
+    static let notarizationTimeout: TimeInterval = 20
+    static let networkPathTimeout: TimeInterval = 2
     static let maxReadBytes = 1_000_000
     static let maxMatchedLength = 8_192
     static let maxHashedFileBytes = 50_000_000
@@ -201,7 +207,78 @@ public struct Scanner: Sendable {
             let connections = connections(fromNetstatOutput: runTool("/usr/sbin/netstat", ["-anlv", "-p", "tcp"]))
                 + connections(fromNetstatOutput: runTool("/usr/sbin/netstat", ["-anlv", "-p", "udp"]))
             return outboundFindings(rules, connections: connections)
+        case .notarization:
+            var cache = NotarizationCache()
+            let checked = notarizationFindings(rules, apps: installedApps().compactMap(developerIDApp), cache: &cache) { path in
+                guard isNetworkAvailable() else { return nil }
+                return notarizationVerdict(fromSpctlOutput: runTool("/usr/sbin/spctl", ["--assess", "--type", "execute", "-v", path], includingErrorOutput: true, timeout: notarizationTimeout), path: path)
+            }
+            notices += [checked.notice].compactMap { $0 }
+            do {
+                try cache.save()
+            } catch {
+                notices.append("Couldn't save the notarization cache: \(error.localizedDescription)")
+            }
+            return checked.findings
         }
+    }
+
+    static func developerIDApp(at url: URL) -> (path: String, team: String, cdhash: String, isNotarized: Bool)? {
+        var staticCode: SecStaticCode?
+        var developerID: SecRequirement?
+        var notarized: SecRequirement?
+        let offline = SecCSFlags(rawValue: kSecCSBasicValidateOnly).union(.noNetworkAccess)
+        guard
+            SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess, let staticCode,
+            SecRequirementCreateWithString(developerIDRequirement as CFString, [], &developerID) == errSecSuccess, let developerID,
+            SecRequirementCreateWithString(notarizedRequirement as CFString, [], &notarized) == errSecSuccess, let notarized,
+            SecStaticCodeCheckValidity(staticCode, offline, developerID) == errSecSuccess
+        else { return nil }
+        var information: CFDictionary?
+        SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information)
+        let signing = information as? [String: Any] ?? [:]
+        guard let team = signing[kSecCodeInfoTeamIdentifier as String] as? String, let unique = signing[kSecCodeInfoUnique as String] as? Data else { return nil }
+        let cdhash = unique.map { String(format: "%02x", $0) }.joined()
+        return (url.path, team, cdhash, SecStaticCodeCheckValidity(staticCode, offline, notarized) == errSecSuccess)
+    }
+
+    static func notarizationVerdict(fromSpctlOutput output: String, path: String) -> Bool? {
+        guard output.hasPrefix(path + ": ") else { return nil }
+        let lines = output.dropFirst(path.count + 2).split(whereSeparator: \.isNewline)
+        guard let verdict = lines.first, let source = lines.dropFirst().first(where: { $0.hasPrefix("source=") }) else { return nil }
+        switch (verdict, source) {
+        case ("accepted", "source=Notarized Developer ID"): return true
+        case ("rejected", "source=Unnotarized Developer ID"): return false
+        default: return nil
+        }
+    }
+
+    static func notarizationFindings(_ rules: [Rule], apps: [(path: String, team: String, cdhash: String, isNotarized: Bool)], cache: inout NotarizationCache, assess: (String) -> Bool?) -> (findings: [Finding], notice: String?) {
+        cache.keep(paths: Set(apps.map(\.path)))
+        let unconfirmed = apps.filter { !$0.isNotarized }.sorted { $0.path < $1.path }
+        let pending = unconfirmed.filter { cache.isNotarized(path: $0.path, cdhash: $0.cdhash) == nil }
+        for app in pending.shuffled().prefix(maxNotarizationAssessments) {
+            guard let isNotarized = assess(app.path) else { break }
+            cache.record(isNotarized, path: app.path, cdhash: app.cdhash)
+        }
+        let unnotarized = unconfirmed.filter { cache.isNotarized(path: $0.path, cdhash: $0.cdhash) == false }
+        let findings = rules.flatMap { rule in
+            unnotarized.map { app in
+                Finding(rule: rule, detail: "\(URL(fileURLWithPath: app.path).lastPathComponent) · team \(app.team) · \(NSString(string: app.path).abbreviatingWithTildeInPath)", path: app.path)
+            }
+        }
+        let left = unconfirmed.count { cache.isNotarized(path: $0.path, cdhash: $0.cdhash) == nil }
+        guard left > 0 else { return (findings, nil) }
+        return (findings, "Notarization check couldn't ask Gatekeeper about \(left == 1 ? "1 new or changed app" : "\(left) new or changed apps") yet and tries again on the next scan.")
+    }
+
+    static func isNetworkAvailable() -> Bool {
+        let monitor = NWPathMonitor()
+        let updated = DispatchSemaphore(value: 0)
+        monitor.pathUpdateHandler = { _ in updated.signal() }
+        monitor.start(queue: DispatchQueue(label: "bluehat.network-path"))
+        defer { monitor.cancel() }
+        return updated.wait(timeout: .now() + networkPathTimeout) == .success && monitor.currentPath.status == .satisfied
     }
 
     static func connections(fromNetstatOutput output: String) -> [Connection] {
@@ -585,20 +662,24 @@ public struct Scanner: Sendable {
         String(decoding: RegularFile.read(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true) ?? Data(), as: UTF8.self)
     }
 
-    static func runTool(_ executable: String, _ arguments: [String]) -> String {
+    static func runTool(_ executable: String, _ arguments: [String], includingErrorOutput: Bool = false, timeout: TimeInterval? = nil) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
+        process.standardError = includingErrorOutput ? output : FileHandle.nullDevice
         do {
             try process.run()
         } catch {
             return ""
         }
+        let termination = DispatchWorkItem { process.terminate() }
+        if let timeout { DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: termination) }
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        termination.cancel()
+        guard timeout == nil || process.terminationReason == .exit else { return "" }
         return String(decoding: data, as: UTF8.self)
     }
 

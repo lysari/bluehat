@@ -69,6 +69,7 @@ run anything.
 | 🛡️ **Protections** | System Integrity Protection, Gatekeeper and the firewall, when switched off. |
 | ✍️ **Launch signing** | Programs started by launch items that are unsigned, ad-hoc signed or tampered with. |
 | 📦 **App signing** | Apps in Applications and Downloads that are unsigned, ad-hoc signed or changed after signing. |
+| 🏅 **Notarization** | Apps signed with a Developer ID that Apple never notarized (scanned for malware). Checked offline from the app's ticket where macOS has one; other new or changed apps are asked of Gatekeeper, a few per scan, and the answer is remembered until the app changes. |
 | 🔑 **SSH keys** | Every key in `~/.ssh/authorized_keys`. Ignore the ones you know, and only new ones come back. |
 | 🧾 **Profiles** | Configuration profiles that set a proxy, DNS, root certificate, content filter or browser policy. |
 | 🧩 **Extensions** | Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions from outside the official stores, with cookie access on every site, debugger or proxy permissions, or listed in published hijack and spyware campaign reports. |
@@ -115,6 +116,12 @@ folder, not from a real infection.
   downloads `rules.signed.json` and `feed.signed.json` from
   `raw.githubusercontent.com/lysari/bluehat-rules/main/`. Redirects are refused,
   no cookies or credentials are kept, and the files are capped at 2 MB and 4 MB.
+- **Gatekeeper may ask Apple about an app.** The notarization check reads the
+  ticket stapled to an app or already known to macOS, without the network. Only
+  for a Developer ID app with neither does it run `spctl --assess`, and macOS's
+  Gatekeeper then looks up that app's code hash on Apple's notarization servers,
+  the same lookup it makes when you first open a downloaded app. At most 5 apps
+  per scan, each once until it changes, and none while the Mac is offline.
 - **No telemetry.** No analytics, no crash reporting, no accounts. Findings and
   scan history stay on your Mac. Source links and download pages open in your
   browser only when you click them.
@@ -123,12 +130,12 @@ folder, not from a real infection.
   accepts only for the feed, never for rules. Signed files expire, and an older
   version never replaces a newer one, so a stale or replayed file is refused.
   If the download fails, Bluehat uses its last verified copy.
-- **Rules are data.** A rule picks one of the 19 checks built into the app and
+- **Rules are data.** A rule picks one of the 20 checks built into the app and
   gives it paths, patterns, hashes, versions or IP addresses. It can't add a command.
 - **Bluehat never runs what it finds.** It reads versions from folder names and
   headers and checks code signatures with the Security framework. The only
-  programs it starts on its own are macOS tools such as `ps`, `lsof`, `netstat`
-  and `crontab -l`.
+  programs it starts on its own are macOS tools such as `ps`, `lsof`, `netstat`,
+  `spctl` and `crontab -l`.
 - **Connections are only listed.** The connection check reads the Mac's open
   connections with `netstat` and compares their remote IP addresses with the
   rules. It never connects to a listed address and never looks up a name.
@@ -221,7 +228,7 @@ flowchart LR
         UI["MenuBar · Views · Stores<br/>shield, panel, settings"]
         subgraph Core["BluehatCore"]
             Feed["RuleFeed<br/>download and verify"]
-            Scan["Scanner<br/>19 built-in checks"]
+            Scan["Scanner<br/>20 built-in checks"]
             Inv["ProjectFolders · NpmInventory"]
             Hist["ScanHistory"]
         end
@@ -248,7 +255,7 @@ flowchart LR
 | [`Sources/Bluehat/Stores/`](Sources/Bluehat/Stores) | `ScanStore` (scans, findings, schedule) and `SettingsStore` |
 | [`Sources/Bluehat/Theme/`](Sources/Bluehat/Theme) | Design tokens: colours, spacing, fonts, motion |
 | [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, installs, scan records |
-| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `ProjectFolders`, `NpmInventory`, `ScanHistory` |
+| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache` |
 | [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader |
 | [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` |
 | [`Tests/BluehatCoreTests/`](Tests/BluehatCoreTests) | Unit tests, mirroring `Sources/BluehatCore` |

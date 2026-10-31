@@ -40,7 +40,7 @@ New check types (each needs an app update; rules then use them):
 - [x] `launchItemSignature`: launch items whose program is unsigned, ad-hoc signed or tampered (all architectures)
 - [x] `appSignature`: apps in Applications and Downloads that are unsigned, ad-hoc signed or changed after signing
 - [x] Older apps skip rules with unknown check types instead of rejecting the rulebook
-- [ ] `notarization`: Developer ID apps that aren't notarized (Gatekeeper's online verdict, too slow to run every scan today)
+- [x] `notarization`: Developer ID apps that aren't notarized; checked offline from the stapled or locally known ticket (40 apps in 0.3 s), Gatekeeper's online verdict (`spctl`) only for the rest, at most 5 per scan, cached per app path and code hash
 - [x] `browserExtension`: Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions; flags extensions outside official stores, cookie access on every site, debugger and proxy permissions
 - [x] Known-bad extension IDs from published compromise reports, matched by ID with `browserExtension` patterns: Cyberhaven campaign (Secure Annex, 22 IDs; 10 more that were fixed since at low severity), GitLab's CSP-stripping cluster (16), RedDirection (18) and ShadyPanda (159) from Koi
 - [ ] Extension version in the `browserExtension` descriptor, so hijacked extensions that were fixed since (and one-release hijacks such as a single bad wallet update) are flagged only in their bad versions

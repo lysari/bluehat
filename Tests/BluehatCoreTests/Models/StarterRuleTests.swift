@@ -131,6 +131,19 @@ struct StarterRuleTests {
         #expect(Scanner.xprotectFindings([rule], version: minimum).isEmpty)
     }
 
+    @Test func flagsOnlyAppsGatekeeperCallsUnnotarized() throws {
+        let rule = try #require(rulebook.rules.first { $0.id == "app.unnotarized" })
+        #expect(rule.check == .notarization)
+        #expect(rule.severity == .low)
+        var cache = NotarizationCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "bluehat-notarization-\(UUID().uuidString).json"))
+        let apps = [
+            (path: "/Applications/Stats.app", team: "RP2S87B72W", cdhash: "373e7d3b", isNotarized: true),
+            (path: "/Applications/Old.app", team: "AB12CD34EF", cdhash: "9a6e0b67", isNotarized: false),
+        ]
+        let result = Scanner.notarizationFindings([rule], apps: apps, cache: &cache) { _ in false }
+        #expect(result.findings.map(\.detail) == ["Old.app · team AB12CD34EF · /Applications/Old.app"])
+    }
+
     @Test func detectsAppleNamedLaunchItemsOutsideSystem() throws {
         #expect(try matches("launch.apple-impersonation", "/Users/alex/Library/LaunchAgents/com.apple.crashreporter.helper.plist"))
         #expect(try matches("launch.apple-impersonation", "/Library/LaunchDaemons/com.apple.systemupdater.plist"))

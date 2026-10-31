@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect, outbound
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect, outbound, notarization
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -169,7 +169,7 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             return isSHA256 ? nil : "hashes must be lowercase SHA-256 hex"
         case .setting:
             return rule.setting == nil ? "setting is required" : nil
-        case .launchItemSignature, .appSignature:
+        case .launchItemSignature, .appSignature, .notarization:
             return nil
         case .sshKey, .profile:
             return rule.patterns == nil ? nil : problem(inPatterns: rule.patterns)

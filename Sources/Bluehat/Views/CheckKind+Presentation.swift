@@ -23,6 +23,7 @@ extension CheckKind {
         case .systemExtension: "System extensions"
         case .xprotect: "XProtect"
         case .outbound: "Connections"
+        case .notarization: "Notarization"
         }
     }
 
@@ -47,6 +48,7 @@ extension CheckKind {
         case .systemExtension: "memorychip"
         case .xprotect: "checkmark.shield"
         case .outbound: "antenna.radiowaves.left.and.right"
+        case .notarization: "checkmark.seal"
         }
     }
 
@@ -71,6 +73,7 @@ extension CheckKind {
         case .systemExtension: "If you know the app it came from, ignore this finding. Otherwise open System Settings › General › Login Items & Extensions, turn the extension off, and delete the app that installed it. For a kernel extension, run the vendor's uninstaller and restart."
         case .xprotect: "Open System Settings › General › Software Update, click the info button next to Automatic Updates, and turn on Install Security Responses and system files. Stay online and restart; macOS updates XProtect on its own. Scan again a day later."
         case .outbound: "Open Activity Monitor, search for the process named above, and quit it (Force Quit if it comes back). Then scan again and remove the launch item, app or file that started it. If it was malware, change your passwords from another device, starting with email, Apple Account and banking. If you know the app and trust it, ignore this finding."
+        case .notarization: "Check the developer's website for a newer version of the app, which is usually notarized, and install it from there. If the app is old and you trust its developer, ignore this finding. If you don't know where it came from, quit it and move it to the Trash."
         }
     }
 }
