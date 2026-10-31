@@ -24,26 +24,27 @@ public struct Scanner: Sendable {
     static let adHocSignatureFlag: UInt32 = 0x2
     static let maxReadBytes = 1_000_000
     static let maxHashedFileBytes = 50_000_000
-    static let maxHashedFiles = 5_000
+    static let maxHashedFilesPerDirectory = 5_000
     static let maxHashDepth = 6
     static let hashChunkBytes = 1 << 20
     static let maxDetailLength = 200
 
     public init() {}
 
-    public func scan(_ rulebook: Rulebook, onAreaFinished: @Sendable (CheckKind, [Finding]) -> Void = { _, _ in }) -> [Finding] {
+    public func scan(_ rulebook: Rulebook, onAreaFinished: @Sendable (CheckKind, [Finding]) -> Void = { _, _ in }) -> (findings: [Finding], notices: [String]) {
         var findings: [Finding] = []
+        var notices: [String] = []
         for area in CheckKind.allCases {
             let rules = rulebook.rules.filter { $0.check == area }
             guard !rules.isEmpty else { continue }
-            let areaFindings = Self.findings(in: area, rules: rules)
+            let areaFindings = Self.findings(in: area, rules: rules, notices: &notices)
             findings += areaFindings
             onAreaFinished(area, areaFindings)
         }
-        return findings.sorted { $0.rule.severity > $1.rule.severity }
+        return (findings.sorted { $0.rule.severity > $1.rule.severity }, notices)
     }
 
-    static func findings(in area: CheckKind, rules: [Rule]) -> [Finding] {
+    static func findings(in area: CheckKind, rules: [Rule], notices: inout [String]) -> [Finding] {
         switch area {
         case .path:
             return rules.flatMap { rule in
@@ -81,10 +82,11 @@ public struct Scanner: Sendable {
                 }
             }
         case .fileHash:
-            let fileHashes = hashedFiles()
+            let hashed = hashedFiles(in: hashedDirectories.map(expand), budget: maxHashedFilesPerDirectory)
+            if let notice = hashed.notice { notices.append(notice) }
             return rules.flatMap { rule in
                 let hashes = Set(rule.hashes ?? [])
-                return fileHashes.filter { hashes.contains($0.value) }.keys.sorted().map {
+                return hashed.hashes.filter { hashes.contains($0.value) }.keys.sorted().map {
                     Finding(rule: rule, detail: $0, path: $0)
                 }
             }
@@ -355,24 +357,30 @@ public struct Scanner: Sendable {
         return ports
     }
 
-    static func hashedFiles() -> [String: String] {
+    static func hashedFiles(in directories: [String], budget: Int) -> (hashes: [String: String], notice: String?) {
         var hashes: [String: String] = [:]
-        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
-        for directory in hashedDirectories.map(expand) {
+        var skipped: [String] = []
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        for directory in directories {
             guard let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: directory), includingPropertiesForKeys: keys) else { continue }
+            var candidates: [(url: URL, modified: Date)] = []
             for case let url as URL in enumerator {
                 if enumerator.level > maxHashDepth { enumerator.skipDescendants() }
                 guard
-                    hashes.count < maxHashedFiles,
-                    let values = try? url.resourceValues(forKeys: Set(keys)),
-                    values.isRegularFile == true,
-                    (values.fileSize ?? 0) <= maxHashedFileBytes,
-                    let digest = sha256(of: url)
+                    let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                    (values.fileSize ?? 0) <= maxHashedFileBytes
                 else { continue }
-                hashes[url.path] = digest
+                candidates.append((url, values.contentModificationDate ?? .distantPast))
             }
+            let newest = candidates.sorted { $0.modified > $1.modified }.prefix(budget)
+            for candidate in newest {
+                hashes[candidate.url.path] = sha256(of: candidate.url)
+            }
+            let skippedCount = candidates.count - newest.count
+            if skippedCount > 0 { skipped.append("\(skippedCount.formatted()) in \(NSString(string: directory).abbreviatingWithTildeInPath)") }
         }
-        return hashes
+        guard !skipped.isEmpty else { return (hashes, nil) }
+        return (hashes, "Fingerprint check covered only the \(budget.formatted()) newest files per folder and skipped \(skipped.joined(separator: ", ")).")
     }
 
     static func sha256(of url: URL) -> String? {

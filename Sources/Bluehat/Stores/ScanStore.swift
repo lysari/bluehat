@@ -109,7 +109,7 @@ final class ScanStore {
             let rulebook = loaded.payload.appending(malwareFeed?.rules ?? [])
             self.rulebook = rulebook
             let unsupported = loaded.payload.unsupportedRuleCount
-            let messages = [
+            var messages = [
                 loaded.remoteError.map { "Using last verified rules. \($0.localizedDescription)" },
                 Self.feedNotice(feedResult),
                 unsupported == 0 ? nil : unsupported == 1 ? "1 rule needs a newer version of Bluehat and was skipped." : "\(unsupported) rules need a newer version of Bluehat and were skipped.",
@@ -120,12 +120,14 @@ final class ScanStore {
             phase = .scanning
             let clock = ContinuousClock()
             let start = clock.now
-            let sortedFindings = await Task.detached(priority: .userInitiated) {
+            let result = await Task.detached(priority: .userInitiated) {
                 Scanner().scan(rulebook) { area, areaFindings in
                     Task { @MainActor in self.finishArea(area, areaFindings) }
                 }
             }.value
-            findings = sortedFindings
+            findings = result.findings
+            messages += result.notices
+            notice = messages.isEmpty ? nil : messages.joined(separator: " ")
             finishedAreas = Set(areas)
             scanDuration = clock.now - start
             lastScanAt = .now

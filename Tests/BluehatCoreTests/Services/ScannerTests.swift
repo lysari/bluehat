@@ -17,7 +17,7 @@ struct ScannerTests {
         try Data().write(to: present)
         defer { try? FileManager.default.removeItem(at: present) }
 
-        let findings = Scanner().scan(rulebook([rule("path.test", .path, paths: [present.path, "/nonexistent/bluehat"])]))
+        let findings = Scanner().scan(rulebook([rule("path.test", .path, paths: [present.path, "/nonexistent/bluehat"])])).findings
 
         #expect(findings.map(\.path) == [present.path])
     }
@@ -30,7 +30,7 @@ struct ScannerTests {
         let findings = Scanner().scan(rulebook([
             rule("low.test", .path, severity: .low, paths: [present.path]),
             rule("critical.test", .path, severity: .critical, paths: [present.path]),
-        ]))
+        ])).findings
 
         #expect(findings.map(\.rule.id) == ["critical.test", "low.test"])
     }
@@ -54,7 +54,7 @@ struct ScannerTests {
     }
 
     @Test func matchesRunningProcessCommandLine() {
-        let findings = Scanner().scan(rulebook([rule("process.test", .process, patterns: ["swiftpm-testing-helper|xctest|BluehatCoreTests"])]))
+        let findings = Scanner().scan(rulebook([rule("process.test", .process, patterns: ["swiftpm-testing-helper|xctest|BluehatCoreTests"])])).findings
         #expect(!findings.isEmpty)
     }
 
