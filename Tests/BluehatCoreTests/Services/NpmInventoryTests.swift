@@ -161,7 +161,7 @@ struct NpmInventoryTests {
     }
 
     func rule(_ id: String, _ packages: [MaliciousPackage]) -> Rule {
-        Rule(id: id, title: id, severity: .critical, category: .malware, check: .npmPackage, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: packages, files: nil, summary: nil, remedy: nil, references: nil)
+        Rule(id: id, title: id, severity: .critical, category: .malware, check: .npmPackage, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: packages, files: nil, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
     }
 
     @Test func readsPackageLockV2AndV3PackagesWithNestedScopedAndAliasedEntries() {

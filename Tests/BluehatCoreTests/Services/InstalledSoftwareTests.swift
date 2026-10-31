@@ -24,7 +24,7 @@ struct InstalledSoftwareTests {
     }
 
     func rule(_ product: SoftwareProduct, _ ranges: [VersionRange], advisory: String = "CVE-2024-21892") -> Rule {
-        Rule(id: "cve.test", title: "Test", severity: .high, category: .rce, check: .softwareVersion, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: product, advisory: advisory, ranges: ranges, packages: nil, files: nil, summary: nil, remedy: nil, references: nil)
+        Rule(id: "cve.test", title: "Test", severity: .high, category: .rce, check: .softwareVersion, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: product, advisory: advisory, ranges: ranges, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
     }
 
     func install(_ product: SoftwareProduct, _ version: String, path: String = "/x") throws -> Installation {

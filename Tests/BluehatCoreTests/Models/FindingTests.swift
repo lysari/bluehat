@@ -4,7 +4,7 @@ import Testing
 
 struct FindingTests {
     func finding(_ detail: String, path: String? = nil) -> Finding {
-        let rule = Rule(id: "process.test", title: "Test", severity: .high, category: .malware, check: .process, patterns: ["x"], paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, summary: nil, remedy: nil, references: nil)
+        let rule = Rule(id: "process.test", title: "Test", severity: .high, category: .malware, check: .process, patterns: ["x"], paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
         return Finding(rule: rule, detail: detail, path: path)
     }
 

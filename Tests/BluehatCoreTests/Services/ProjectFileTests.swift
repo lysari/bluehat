@@ -19,7 +19,7 @@ struct ProjectFileTests {
     let installHook = ProjectFileTests.rule("project.install-download", files: ["package.json"], patterns: [#""(preinstall|install|postinstall|prepare)"\s*:\s*"[^"\n]{0,300}\b(curl|wget)\b[^"\n]{0,300}\|\s*(ba|z)?sh\b"#])
 
     static func rule(_ id: String, files: [String], patterns: [String]) -> Rule {
-        Rule(id: id, title: id, severity: .critical, category: .backdoor, check: .projectFile, patterns: patterns, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: files, summary: nil, remedy: nil, references: nil)
+        Rule(id: id, title: id, severity: .critical, category: .backdoor, check: .projectFile, patterns: patterns, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: files, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
     }
 
     func write(_ text: String, to relativePath: String) throws {

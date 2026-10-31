@@ -75,6 +75,8 @@ run anything.
 | 🧰 **Software versions** | Node.js, Python, PHP, Ruby, Git and OpenSSL installs (Homebrew, nvm, Volta, fnm, asdf, mise, pyenv, rbenv, python.org, the Node.js installer) with known CVEs. **Update** opens Terminal with the upgrade command, or the download page for an installer copy; **Move to Trash** removes a version-manager copy, and **Remove** opens Terminal with `brew` for a Homebrew one. |
 | 📚 **npm packages** | Known-malicious package versions in the lockfiles of your projects and in global `node_modules`, such as the hijacked chalk and debug releases and the Shai-Hulud worm. |
 | 🕵️ **Project files** | Code hidden in `tailwind.config.js`, `next.config.js` and other config files, and install scripts that download and run code, as fake interview repositories do. |
+| 🧱 **System extensions** | System extensions (VPNs, network filters, endpoint security, drivers) and loaded third-party kernel extensions that aren't from a short list of well-known vendors. |
+| 🦠 **XProtect** | Apple's built-in malware definitions, when they are older than the version the rules expect. |
 
 ### The app
 
@@ -120,7 +122,7 @@ folder, not from a real infection.
   accepts only for the feed, never for rules. Signed files expire, and an older
   version never replaces a newer one, so a stale or replayed file is refused.
   If the download fails, Bluehat uses its last verified copy.
-- **Rules are data.** A rule picks one of the 16 checks built into the app and
+- **Rules are data.** A rule picks one of the 18 checks built into the app and
   gives it paths, patterns, hashes or versions. It can't add a command.
 - **Bluehat never runs what it finds.** It reads versions from folder names and
   headers and checks code signatures with the Security framework. The only
@@ -214,7 +216,7 @@ flowchart LR
         UI["MenuBar · Views · Stores<br/>shield, panel, settings"]
         subgraph Core["BluehatCore"]
             Feed["RuleFeed<br/>download and verify"]
-            Scan["Scanner<br/>16 built-in checks"]
+            Scan["Scanner<br/>18 built-in checks"]
             Inv["ProjectFolders · NpmInventory"]
             Hist["ScanHistory"]
         end

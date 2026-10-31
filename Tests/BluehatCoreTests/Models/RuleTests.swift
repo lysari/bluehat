@@ -195,6 +195,57 @@ struct RuleTests {
         #expect(throws: Never.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", #""files": [\#(most)], "patterns": ["x"]"#))) }
     }
 
+    @Test func decodesSystemExtensionRule() throws {
+        let fields = #""teams": ["W5364U7YZB", "UBF8T346G9"], "bundles": ["io.macfuse", "org.virtualbox"]"#
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "systemExtension", fields))).rules.first)
+        #expect(rule.check == .systemExtension)
+        #expect(rule.teams == ["W5364U7YZB", "UBF8T346G9"])
+        #expect(rule.bundles == ["io.macfuse", "org.virtualbox"])
+    }
+
+    @Test func acceptsSystemExtensionRuleWithoutVendors() throws {
+        #expect(try Rulebook.decode(from: rulebookJSON(rule(check: "systemExtension", #""summary": "Every one""#))).rules.count == 1)
+    }
+
+    @Test(arguments: [
+        #""teams": []"#,
+        #""teams": ["w5364u7yzb"]"#,
+        #""teams": ["W5364U7YZ"]"#,
+        #""teams": ["W5364U7YZBX"]"#,
+        #""teams": ["W5364-7YZB"]"#,
+        #""bundles": []"#,
+        #""bundles": ["io"]"#,
+        #""bundles": ["io.macfuse."]"#,
+        #""bundles": [".io.macfuse"]"#,
+        #""bundles": ["io..macfuse"]"#,
+        #""bundles": ["io.mac fuse"]"#,
+        #""bundles": ["io.macfuse.*"]"#,
+        #""bundles": ["a.b.c.d.e.f.g.h.i"]"#,
+    ])
+    func rejectsInvalidSystemExtensionRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "systemExtension", fields))) }
+    }
+
+    @Test func rejectsTooManyTeams() {
+        let teams = Array(repeating: #""W5364U7YZB""#, count: Rulebook.maxEntriesPerRule + 1).joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "systemExtension", #""teams": [\#(teams)]"#))) }
+    }
+
+    @Test func decodesXProtectRule() throws {
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "xprotect", #""minimumVersion": 5360"#))).rules.first)
+        #expect(rule.check == .xprotect)
+        #expect(rule.minimumVersion == 5360)
+    }
+
+    @Test(arguments: [#""summary": "No minimum""#, #""minimumVersion": 0"#, #""minimumVersion": -1"#, #""patterns": ["x"]"#])
+    func rejectsXProtectRuleWithoutPositiveMinimum(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "xprotect", fields))) }
+    }
+
+    @Test func rejectsNonIntegerXProtectMinimum() {
+        #expect(throws: RulebookError.malformed) { try Rulebook.decode(from: rulebookJSON(rule(check: "xprotect", #""minimumVersion": "5360""#))) }
+    }
+
     @Test func signedRulesAreValidForAYearAndWarnInTheLast30Days() throws {
         let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "expires": "2027-10-01T00:00:00Z", "rules": []}"#.utf8)
         let rulebook = try Rulebook.decode(from: data)

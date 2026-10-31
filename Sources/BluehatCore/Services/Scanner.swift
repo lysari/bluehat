@@ -38,6 +38,8 @@ public struct Scanner: Sendable {
     ]
     static let pythonFrameworkVersions = "/Library/Frameworks/Python.framework/Versions"
     static let nodeInstallerPrefix = "/usr/local"
+    static let xprotectBundles = ["/Library/Apple/System/Library/CoreServices/XProtect.bundle", "/private/var/protected/xprotect/XProtect.bundle"]
+    static let appleBundlePrefix = "com.apple."
     static let firefoxSignedState = 2
     static let maxExtensionIndexBytes = 10_000_000
     static let adHocSignatureFlag: UInt32 = 0x2
@@ -186,6 +188,59 @@ public struct Scanner: Sendable {
             let checked = projectFileFindings(rules, projects: projects)
             notices += [checked.notice].compactMap { $0 }
             return checked.findings
+        case .systemExtension:
+            let extensions = systemExtensions(fromSystemExtensionsctlOutput: runTool("/usr/bin/systemextensionsctl", ["list"]))
+                + kernelExtensions(fromKmutilOutput: runTool("/usr/bin/kmutil", ["showloaded", "--list-only"]))
+            return systemExtensionFindings(rules, extensions: extensions)
+        case .xprotect:
+            let versions = xprotectBundles.compactMap { bundle in
+                RegularFile.read(atPath: "\(bundle)/Contents/Info.plist", maxBytes: maxReadBytes, followingSymlinks: false).flatMap(xprotectVersion(fromInfoPlist:))
+            }
+            return xprotectFindings(rules, version: versions.max())
+        }
+    }
+
+    static func systemExtensions(fromSystemExtensionsctlOutput output: String) -> [(bundle: String, team: String?, detail: String)] {
+        let entry = /[* ]*\t[* ]*\t([^\t]+)\t(\S+) \([^)\t]*\)\t(.*)\t\[([^\]\t]*)\]/
+        return output.split(whereSeparator: \.isNewline).compactMap { line in
+            guard let match = line.wholeMatch(of: entry) else { return nil }
+            let team = String(match.1)
+            let bundle = String(match.2)
+            return (bundle, team, "\(match.3) (\(bundle)) · team \(team) · \(match.4)")
+        }
+    }
+
+    static func kernelExtensions(fromKmutilOutput output: String) -> [(bundle: String, team: String?, detail: String)] {
+        let entry = /\s*\d+\s+\d+\s+\S+\s+\S+\s+\S+\s+(\S+) \(/
+        return output.split(whereSeparator: \.isNewline).compactMap { line in
+            guard let match = line.prefixMatch(of: entry), !match.1.hasPrefix(appleBundlePrefix) else { return nil }
+            let bundle = String(match.1)
+            return (bundle, nil, "Kernel extension (\(bundle)) · loaded")
+        }
+    }
+
+    static func systemExtensionFindings(_ rules: [Rule], extensions: [(bundle: String, team: String?, detail: String)]) -> [Finding] {
+        rules.flatMap { rule in
+            let bundles = (rule.bundles ?? []).map { $0.lowercased() }
+            return extensions.filter { installed in
+                if let team = installed.team { return !(rule.teams ?? []).contains(team) }
+                let bundle = installed.bundle.lowercased()
+                return !bundles.contains { bundle == $0 || bundle.hasPrefix($0 + ".") }
+            }
+            .map { Finding(rule: rule, detail: $0.detail, path: nil) }
+        }
+    }
+
+    static func xprotectVersion(fromInfoPlist data: Data) -> Int? {
+        let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        return (plist?["CFBundleShortVersionString"] as? String).flatMap { Int($0) }
+    }
+
+    static func xprotectFindings(_ rules: [Rule], version: Int?) -> [Finding] {
+        guard let version else { return [] }
+        return rules.compactMap { rule in
+            guard let minimum = rule.minimumVersion, version < minimum else { return nil }
+            return Finding(rule: rule, detail: "XProtect version \(version) is older than \(minimum)", path: nil)
         }
     }
 

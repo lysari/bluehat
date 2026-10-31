@@ -66,6 +66,24 @@ struct StarterRuleTests {
         #expect(try !matches("extension.debugger-proxy", "browser=Chrome id=a name=x update=none permissions=storage,tabs"))
     }
 
+    @Test func flagsSystemExtensionsOnlyFromUnlistedVendors() throws {
+        let rule = try #require(rulebook.rules.first { $0.id == "sysext.unknown-vendor" })
+        let extensions = [
+            (bundle: "io.tailscale.ipn.macsys.network-extension", team: Optional("W5364U7YZB"), detail: "Tailscale"),
+            (bundle: "io.macfuse.filesystems.macfuse", team: String?.none, detail: "macFUSE"),
+            (bundle: "com.example.filter", team: Optional("AB12CD34EF"), detail: "Unknown filter"),
+            (bundle: "com.example.rootkit", team: String?.none, detail: "Unknown kext"),
+        ]
+        #expect(Scanner.systemExtensionFindings([rule], extensions: extensions).map(\.detail) == ["Unknown filter", "Unknown kext"])
+    }
+
+    @Test func flagsOnlyXProtectBelowTheMinimum() throws {
+        let rule = try #require(rulebook.rules.first { $0.id == "xprotect.outdated" })
+        let minimum = try #require(rule.minimumVersion)
+        #expect(Scanner.xprotectFindings([rule], version: minimum - 1).count == 1)
+        #expect(Scanner.xprotectFindings([rule], version: minimum).isEmpty)
+    }
+
     @Test func detectsAppleNamedLaunchItemsOutsideSystem() throws {
         #expect(try matches("launch.apple-impersonation", "/Users/alex/Library/LaunchAgents/com.apple.crashreporter.helper.plist"))
         #expect(try matches("launch.apple-impersonation", "/Library/LaunchDaemons/com.apple.systemupdater.plist"))

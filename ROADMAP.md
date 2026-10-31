@@ -44,11 +44,13 @@ New check types (each needs an app update; rules then use them):
 - [x] `browserExtension`: Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions; flags extensions outside official stores, cookie access on every site, debugger and proxy permissions
 - [ ] Known-bad extension IDs from published compromise reports
 - [x] `profile`: user configuration profiles, flagging proxy, DNS, root certificate, content filter and browser policy payloads (computer-wide profiles need root)
-- [ ] `systemExtension`: system and kernel extensions not from known vendors
+- [x] `systemExtension`: system extensions not from a known team ID and loaded third-party kernel extensions not from a known bundle ID
+- [x] `softwareVersion`: vulnerable developer tool versions (Node.js, PHP, Python, OpenSSL, Git, Ruby), rules generated from OSV.dev
+- [x] `npmPackage`: malicious npm package versions from the signed feed, in project lockfiles and global `node_modules`
 - [x] `projectFile`: code injected into npm project config files and install scripts (rules pick file names and patterns; the app picks the projects)
 - [x] `sshKey`: every key in `~/.ssh/authorized_keys` with its fingerprint; ignore known keys so only new ones return
 - [ ] `outbound`: established connections to listed hosts or ports (C2 beacons)
-- [ ] `xprotect`: XProtect and MRT definitions too old
+- [x] `xprotect`: XProtect definitions older than the rules' minimum version
 
 Rule content:
 
@@ -71,7 +73,7 @@ Rule content:
 
 ## Phase 5: Distribution
 
-- [ ] Put the app in git, with its own repository
+- [x] Put the app in git, with its own repository ([lysari/bluehat](https://github.com/lysari/bluehat))
 - [x] `devbox run release`: universal DMG (app, Applications link, how-to-open note) signed with the Apple Development identity, with its SHA-256; recipients use Open Anyway on first launch
 - [x] `devbox run publish`: GitHub Release from pushed `main` only, notes generated from `scripts/release-notes.md`, checksum verified after upload, with `--dry-run`
 - [ ] Developer ID signing and notarization, so other Macs open it without warnings

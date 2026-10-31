@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -60,6 +60,9 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let ranges: [VersionRange]?
     public let packages: [MaliciousPackage]?
     public let files: [String]?
+    public let teams: [String]?
+    public let bundles: [String]?
+    public let minimumVersion: Int?
     public let summary: String?
     public let remedy: String?
     public let references: [String]?
@@ -81,6 +84,8 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
     static let maxReferences = 5
     static let maxReferenceLength = 300
     static let advisoryPattern = "^[A-Z][A-Z0-9]{1,15}-[A-Za-z0-9._-]{1,48}$"
+    static let teamIDPattern = "^[A-Z0-9]{10}$"
+    static let bundleIDPattern = #"^[A-Za-z0-9-]{1,64}(\.[A-Za-z0-9-]{1,64}){1,7}$"#
 
     enum CodingKeys: String, CodingKey {
         case schema, version, rules, issued, expires
@@ -175,7 +180,27 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             return packages.lazy.compactMap(problem(inPackage:)).first
         case .projectFile:
             return problem(inFileNames: rule.files) ?? problem(inPatterns: rule.patterns)
+        case .systemExtension:
+            return problem(inVendors: rule)
+        case .xprotect:
+            return (rule.minimumVersion ?? 0) > 0 ? nil : "minimumVersion must be a positive XProtect version such as 5300"
         }
+    }
+
+    static func problem(inVendors rule: Rule) -> String? {
+        if let teams = rule.teams {
+            guard !teams.isEmpty, teams.count <= maxEntriesPerRule else { return "teams must list 1-\(maxEntriesPerRule) team IDs" }
+            if let team = teams.first(where: { $0.range(of: teamIDPattern, options: .regularExpression) == nil }) {
+                return "team \(team) must be a 10-character Apple team ID such as W5364U7YZB"
+            }
+        }
+        if let bundles = rule.bundles {
+            guard !bundles.isEmpty, bundles.count <= maxEntriesPerRule else { return "bundles must list 1-\(maxEntriesPerRule) bundle IDs" }
+            if let bundle = bundles.first(where: { $0.range(of: bundleIDPattern, options: .regularExpression) == nil }) {
+                return "bundle \(bundle) must be a bundle ID of 2-8 parts such as io.macfuse"
+            }
+        }
+        return nil
     }
 
     static func problem(inPackage package: MaliciousPackage) -> String? {
