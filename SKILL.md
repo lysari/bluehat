@@ -34,6 +34,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 | `devbox run start` | Bundle and open the app from `.build` |
 | `devbox run install` | Bundle, copy to `/Applications/Bluehat.app`, and open it |
 | `devbox run release` | Build a universal (Apple silicon and Intel) app, signed like `bundle`, into `.build/dist/Bluehat-<version>.dmg`, and print its SHA-256 |
+| `devbox run publish` | Check the repository, run `release`, and publish the DMG as GitHub Release `v<version>` with generated notes and a verified SHA-256; `devbox run publish -- --dry-run` uploads nothing |
 | `devbox run icon` | Regenerate `assets/AppIcon.icns` from `scripts/make-icon.swift` |
 | `devbox run keygen` | Create the signing key in the login Keychain, or print the existing public key |
 | `devbox run sign-rules` | Validate and sign `rules/rules.json` with the Keychain key, stamping `issued` and `expires` |
@@ -41,12 +42,9 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 
 ## Make a release
 
-1. Raise `version` (and `build`) at the top of `scripts/bundle.sh`. It is the only place the version is set; the DMG name and the About tab read it from there.
-2. Run `devbox run release`. It builds an arm64 + x86_64 app, signs the app and the DMG with your Apple Development identity (ad-hoc and an unsigned DMG when there is none), checks both, and writes `.build/dist/Bluehat-<version>.dmg` with `Bluehat.app`, an `Applications` link to drag onto, and `How to open Bluehat.txt`. It never installs, opens or uploads anything.
-3. Commit and push the version bump, so the release tag points at the code in the DMG.
-4. Take the checksum from the file you are about to upload, right before uploading: `shasum -a 256 .build/dist/Bluehat-<version>.dmg`. A later `devbox run release` rebuilds the DMG with a new signing time and a new checksum.
-5. Publish it as a GitHub Release of `lysari/bluehat`, never as a file committed to git: `gh release create v<version> .build/dist/Bluehat-<version>.dmg -R lysari/bluehat --target main --title "Bluehat <version>" --notes-file <notes.md>`. The notes hold what changed, the requirements, the install and Open Anyway steps, and the SHA-256 (see the `v1.0` release for the layout).
-6. Check the published file: `gh release download v<version> -R lysari/bluehat -D <empty dir>`, then compare its `shasum -a 256` with the notes.
+1. Raise `version` (and `build`) at the top of `scripts/bundle.sh`, the only place the version is set (the DMG name and the About tab read it from there), then commit and push it.
+2. Run `devbox run publish -- --dry-run`. It runs every check and the build, prints the release notes and the exact `gh` command, and uploads nothing.
+3. Run `devbox run publish`. It refuses unless the tree is clean and equals the pushed `main` and `v<version>` is not yet tagged or released, then builds the DMG, publishes it as a GitHub Release of `lysari/bluehat` at that commit with notes from `scripts/release-notes.md` (commits since the previous `v*` tag, or the file in `RELEASE_NOTES`) and its SHA-256, and checks the uploaded file against that checksum.
 
 The app is not Developer ID signed or notarized, so recipients see "Apple could not verify" the first time. They drag Bluehat into Applications, double-click it, click Done, then open System Settings › Privacy & Security and click **Open Anyway** next to the Bluehat message, and confirm. They need macOS 26 or later. Rules update by themselves; app updates mean downloading the new DMG.
 

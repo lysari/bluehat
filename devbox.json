@@ -13,6 +13,7 @@
       "start": "sh scripts/bundle.sh && open .build/Bluehat.app",
       "install": "sh scripts/install.sh",
       "release": "sh scripts/release.sh",
+      "publish": "sh scripts/publish.sh \"$@\"",
       "keygen": "swift run bluehat-sign keygen",
       "sign-rules": "swift run bluehat-sign sign rules/rules.json",
       "icon": "swift scripts/make-icon.swift assets/AppIcon.icns"
