@@ -45,6 +45,7 @@ public struct RuleFeed: Sendable {
     public static let sourceURL = URL(string: "https://raw.githubusercontent.com/lysari/bluehat-rules/main/rules.signed.json")!
     public static let trustedKeys = [
         "ejbt4bgFPpvJCdj/67M3kWasEgEs1eKUs9v/ii97PhA=",
+        "7QnEa2pH6FwbhIMqMbVO/y2bhumiHbtIqshgdxzKSJA=",
     ].map { try! Curve25519.Signing.PublicKey(rawRepresentation: Data(base64Encoded: $0)!) }
     public static let minimumVersion = 2026103008
     static let maxEnvelopeBytes = 2_000_000

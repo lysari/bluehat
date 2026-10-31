@@ -59,7 +59,7 @@ Rule content:
 ## Phase 4: Rule supply chain hardening (in progress)
 
 - [x] Several trusted public keys, `backup-keygen` for an offline backup key, `sign --key-file`, rotation runbook in the rules README
-- [ ] Create the offline backup key and add it to the app and CI (owner step)
+- [x] Offline backup key (fingerprint 45:F7:3C:B2:FC:D3:CE:3E) trusted by the app and CI
 - [x] Signed `expires` (30 days), refused when past, cache included; minimum accepted version 2026103008
 - [x] `Verify rules` GitHub Action: signature, match with `rules.json`, stamps, expiry, unique ids, version bump (signing stays on your Mac)
 - [ ] Branch protection and required 2FA on the rules repo
