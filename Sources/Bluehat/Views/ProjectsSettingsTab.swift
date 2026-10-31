@@ -31,7 +31,7 @@ struct ProjectsSettingsTab: View {
             } header: {
                 Text("Project folders")
             } footer: {
-                Text("Bluehat looks up to \(ProjectFolders.maxDepth) folders deep in each for npm projects, checks their lockfiles against known malicious package versions, and checks config files and install scripts for hidden code. It only reads files and skips node_modules, .git, build output and symlinked folders. Add any other folder where you keep code.")
+                Text("Bluehat looks up to \(ProjectFolders.maxDepth) folders deep in each for npm projects, checks their lockfiles against known malicious package versions, and checks config files and install scripts for hidden code. It only reads files and skips node_modules, .git, build output, Python environments, app bundles and symlinked folders. Add any other folder where you keep code.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }
