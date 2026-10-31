@@ -197,6 +197,42 @@ public struct Scanner: Sendable {
                 RegularFile.read(atPath: "\(bundle)/Contents/Info.plist", maxBytes: maxReadBytes, followingSymlinks: false).flatMap(xprotectVersion(fromInfoPlist:))
             }
             return xprotectFindings(rules, version: versions.max())
+        case .outbound:
+            let connections = connections(fromNetstatOutput: runTool("/usr/sbin/netstat", ["-anlv", "-p", "tcp"]))
+                + connections(fromNetstatOutput: runTool("/usr/sbin/netstat", ["-anlv", "-p", "udp"]))
+            return outboundFindings(rules, connections: connections)
+        }
+    }
+
+    static func connections(fromNetstatOutput output: String) -> [Connection] {
+        let row = /(tcp|udp)(?:4|6|46)\s+\d+\s+\d+\s+\S+\s+(\S+)\s+(?:([A-Z][A-Z0-9_]*)\s+)?\d+\s+\d+\s+\d+\s+\d+\s+(.*?):\d+\s+[0-9a-f]{5}\s/
+        return output.split(whereSeparator: \.isNewline).compactMap { line in
+            guard
+                let match = line.prefixMatch(of: row),
+                let dot = match.2.lastIndex(of: "."),
+                let port = RemoteHost.number(match.2[match.2.index(after: dot)...], in: RemoteHost.portRange),
+                let host = match.2[..<dot].split(separator: "%").first,
+                let address = RemoteHost.address(of: host),
+                !RemoteHost.isLocal(address)
+            else { return nil }
+            let process = match.4.trimmingCharacters(in: .whitespaces)
+            return Connection(host: String(host), address: address, port: port, transport: match.1.uppercased(), state: match.3.map(String.init), process: process.isEmpty ? nil : process)
+        }
+    }
+
+    static func outboundFindings(_ rules: [Rule], connections: [Connection]) -> [Finding] {
+        let ordered = connections.filter { $0.state == Connection.establishedState } + connections.filter { $0.state != Connection.establishedState }
+        return rules.flatMap { rule in
+            let hosts = (rule.hosts ?? []).compactMap(RemoteHost.init)
+            let ports = Set(rule.ports ?? [])
+            var reported = Set<String>()
+            return ordered.compactMap { connection -> Finding? in
+                guard
+                    ports.contains(connection.port) || hosts.contains(where: { $0.matches(connection.address, port: connection.port) }),
+                    reported.insert(connection.peer).inserted
+                else { return nil }
+                return Finding(rule: rule, detail: connection.detail, path: nil)
+            }
         }
     }
 

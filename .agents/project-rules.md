@@ -11,7 +11,7 @@
 ```text
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
-│   ├── Models/                  # Rule, Rulebook, MalwareFeed, NpmPackage, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
+│   ├── Models/                  # Rule, Rulebook, MalwareFeed, NpmPackage, RemoteHost, Connection, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
 │   ├── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ProjectFolders (project discovery), NpmInventory (lockfile and node_modules reading), ScanHistory (saved scans)
 │   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads)
 ├── Bluehat/                     # menu bar app: BluehatApp (scenes), AppDelegate (owns ScanStore, starts the menu bar)

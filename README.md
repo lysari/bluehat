@@ -41,7 +41,7 @@ a cracked app, a `curl | sh` line, or `npm install` in a repository a "recruiter
 sent you. Bluehat looks for what that leaves behind:
 
 - **Stealers and backdoors**, such as AMOS (Atomic Stealer), by their files,
-  processes, launch items and file hashes.
+  processes, launch items, file hashes and connections to their servers.
 - **Persistence**: launch items, shell startup lines and cron jobs that bring
   malware back after a restart.
 - **npm supply-chain attacks**: hijacked package releases in your lockfiles, and
@@ -77,6 +77,7 @@ run anything.
 | 🕵️ **Project files** | Code hidden in `tailwind.config.js`, `next.config.js` and other config files, and install scripts that download and run code, as fake interview repositories do. |
 | 🧱 **System extensions** | System extensions (VPNs, network filters, endpoint security, drivers) and loaded third-party kernel extensions that aren't from a short list of well-known vendors. |
 | 🦠 **XProtect** | Apple's built-in malware definitions, when they are older than the version the rules expect. |
+| 📡 **Connections** | Open TCP and UDP connections from any process to the command-and-control servers of current macOS malware, from a daily ThreatFox feed, with the process name. |
 
 ### The app
 
@@ -122,12 +123,15 @@ folder, not from a real infection.
   accepts only for the feed, never for rules. Signed files expire, and an older
   version never replaces a newer one, so a stale or replayed file is refused.
   If the download fails, Bluehat uses its last verified copy.
-- **Rules are data.** A rule picks one of the 18 checks built into the app and
-  gives it paths, patterns, hashes or versions. It can't add a command.
+- **Rules are data.** A rule picks one of the 19 checks built into the app and
+  gives it paths, patterns, hashes, versions or IP addresses. It can't add a command.
 - **Bluehat never runs what it finds.** It reads versions from folder names and
   headers and checks code signatures with the Security framework. The only
-  programs it starts on its own are macOS tools such as `ps`, `lsof` and
-  `crontab -l`.
+  programs it starts on its own are macOS tools such as `ps`, `lsof`, `netstat`
+  and `crontab -l`.
+- **Connections are only listed.** The connection check reads the Mac's open
+  connections with `netstat` and compares their remote IP addresses with the
+  rules. It never connects to a listed address and never looks up a name.
 - **Capped reads.** Files an attacker could plant are read only if they are
   regular files under a size limit, so a huge file, a pipe or a device can't
   stall a scan.
@@ -204,6 +208,7 @@ flowchart LR
     subgraph Sources["Data sources"]
         MB["MalwareBazaar"]
         OSV["OSV.dev"]
+        TF["ThreatFox"]
     end
     subgraph RulesRepo["lysari/bluehat-rules"]
         RJ["rules.json<br/>hand-written and CVE rules"]
@@ -216,13 +221,14 @@ flowchart LR
         UI["MenuBar · Views · Stores<br/>shield, panel, settings"]
         subgraph Core["BluehatCore"]
             Feed["RuleFeed<br/>download and verify"]
-            Scan["Scanner<br/>18 built-in checks"]
+            Scan["Scanner<br/>19 built-in checks"]
             Inv["ProjectFolders · NpmInventory"]
             Hist["ScanHistory"]
         end
     end
     MB --> CI
     OSV -->|malicious npm packages| CI
+    TF -->|macOS C2 addresses| CI
     OSV -.->|CVE ranges, run by hand| RJ
     CI --> FS
     RJ --> Sign --> RS
@@ -259,8 +265,10 @@ Bluehat downloads two signed files:
   files, plus generated rules for CVEs in developer tools. The owner signs it on
   their Mac, and it expires a year after signing.
 - **The daily feed** (`feed.signed.json`): SHA-256 hashes of recent macOS malware
-  from [MalwareBazaar](https://bazaar.abuse.ch/) and malicious npm package versions
-  from [OSV.dev](https://osv.dev/list?ecosystem=npm). A scheduled job in the rules
+  from [MalwareBazaar](https://bazaar.abuse.ch/), malicious npm package versions
+  from [OSV.dev](https://osv.dev/list?ecosystem=npm), and the IP addresses and
+  ports of macOS malware command-and-control servers from
+  [ThreatFox](https://threatfox.abuse.ch/). A scheduled job in the rules
   repository builds and signs it every day, and it expires after 7 days. If it's
   missing, the scan runs with the rulebook alone.
 

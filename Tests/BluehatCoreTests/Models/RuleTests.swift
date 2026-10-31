@@ -246,6 +246,34 @@ struct RuleTests {
         #expect(throws: RulebookError.malformed) { try Rulebook.decode(from: rulebookJSON(rule(check: "xprotect", #""minimumVersion": "5360""#))) }
     }
 
+    @Test func decodesOutboundRules() throws {
+        let hosts = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "outbound", #""hosts": ["203.0.113.5:443", "198.51.100.0/24", "[2001:db8::1]:8443"]"#))).rules.first)
+        #expect(hosts.check == .outbound)
+        #expect(hosts.hosts == ["203.0.113.5:443", "198.51.100.0/24", "[2001:db8::1]:8443"])
+        let ports = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "outbound", #""ports": [4444]"#))).rules.first)
+        #expect(ports.ports == [4444])
+    }
+
+    @Test(arguments: [
+        #""summary": "Nothing to match""#,
+        #""hosts": ["203.0.113.5"], "ports": [443]"#,
+        #""hosts": []"#,
+        #""hosts": ["c2.example.com"]"#,
+        #""hosts": ["127.0.0.1:4444"]"#,
+        #""hosts": ["10.0.0.0/8"]"#,
+        #""hosts": ["203.0.113.5:70000"]"#,
+        #""ports": [0]"#,
+        #""ports": []"#,
+    ])
+    func rejectsInvalidOutboundRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "outbound", fields))) }
+    }
+
+    @Test func rejectsTooManyOutboundHosts() {
+        let hosts = Array(repeating: #""203.0.113.5""#, count: Rulebook.maxEntriesPerRule + 1).joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "outbound", #""hosts": [\#(hosts)]"#))) }
+    }
+
     @Test func signedRulesAreValidForAYearAndWarnInTheLast30Days() throws {
         let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "expires": "2027-10-01T00:00:00Z", "rules": []}"#.utf8)
         let rulebook = try Rulebook.decode(from: data)

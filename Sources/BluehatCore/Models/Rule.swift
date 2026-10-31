@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect, outbound
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -63,6 +63,7 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let teams: [String]?
     public let bundles: [String]?
     public let minimumVersion: Int?
+    public let hosts: [String]?
     public let summary: String?
     public let remedy: String?
     public let references: [String]?
@@ -161,8 +162,7 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
         case .launchItem, .shellProfile, .process, .crontab, .browserExtension:
             return problem(inPatterns: rule.patterns)
         case .listeningPort:
-            guard let ports = rule.ports, !ports.isEmpty, ports.count <= maxEntriesPerRule else { return "ports must list 1-\(maxEntriesPerRule) ports" }
-            return ports.allSatisfy({ (1...65535).contains($0) }) ? nil : "ports must be 1-65535"
+            return problem(inPorts: rule.ports)
         case .fileHash:
             guard let hashes = rule.hashes, !hashes.isEmpty, hashes.count <= maxEntriesPerRule else { return "hashes must list 1-\(maxEntriesPerRule) hashes" }
             let isSHA256 = hashes.allSatisfy { $0.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil }
@@ -184,7 +184,23 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             return problem(inVendors: rule)
         case .xprotect:
             return (rule.minimumVersion ?? 0) > 0 ? nil : "minimumVersion must be a positive XProtect version such as 5300"
+        case .outbound:
+            guard (rule.hosts == nil) != (rule.ports == nil) else { return "set either hosts or ports, not both" }
+            return rule.hosts == nil ? problem(inPorts: rule.ports) : problem(inHosts: rule.hosts)
         }
+    }
+
+    static func problem(inPorts ports: [Int]?) -> String? {
+        guard let ports, !ports.isEmpty, ports.count <= maxEntriesPerRule else { return "ports must list 1-\(maxEntriesPerRule) ports" }
+        return ports.allSatisfy(RemoteHost.portRange.contains) ? nil : "ports must be 1-65535"
+    }
+
+    static func problem(inHosts hosts: [String]?) -> String? {
+        guard let hosts, !hosts.isEmpty, hosts.count <= maxEntriesPerRule else { return "hosts must list 1-\(maxEntriesPerRule) addresses" }
+        if let host = hosts.first(where: { RemoteHost($0) == nil }) {
+            return "host \(host) must be an address or range such as 203.0.113.5:443, [2001:db8::1]:443 or 203.0.113.0/24, at least /\(RemoteHost.minimumIPv4Prefix) for IPv4 and /\(RemoteHost.minimumIPv6Prefix) for IPv6, not loopback or link-local"
+        }
+        return nil
     }
 
     static func problem(inVendors rule: Rule) -> String? {

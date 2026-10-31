@@ -50,7 +50,7 @@ New check types (each needs an app update; rules then use them):
 - [x] `npmPackage`: malicious npm package versions from the signed feed, in project lockfiles and global `node_modules`
 - [x] `projectFile`: code injected into npm project config files and install scripts (rules pick file names and patterns; the app picks the projects)
 - [x] `sshKey`: every key in `~/.ssh/authorized_keys` with its fingerprint; ignore known keys so only new ones return
-- [ ] `outbound`: established connections to listed hosts or ports (C2 beacons)
+- [x] `outbound`: open TCP and UDP connections of every process (`netstat -anlv`, no root) to listed addresses, ranges or ports (C2 beacons), with state and process name; loopback and link-local skipped, no DNS lookups
 - [x] `xprotect`: XProtect definitions older than the rules' minimum version
 
 Rule content:
@@ -59,6 +59,7 @@ Rule content:
 - [x] Behaviour rules: stealer upload/zip/fake password prompt/`curl | osascript`, stealer backdoor processes, Apple-named launch items outside /System
 - [x] Indicators for Poseidon (Malwarebytes, NCSC), Banshee (Elastic, Check Point), Odyssey (Jamf, CYFIRMA) and SHub Reaper (SentinelOne, Moonlock): staging folders and backdoor files, upload and bot-loop processes, and a program-path rule for SHub's fake `GoogleUpdate.app` instead of its `com.google.keystone.agent.plist` name, which Google's real updater also uses. Odyssey's randomly named LaunchDaemon has no published fixed name or program, so the generic launch item rules cover it
 - [x] SHA-256 hashes of current macOS malware samples: daily MalwareBazaar fingerprint feed (`feed.signed.json`), one critical rule per family, optional so a missing feed never blocks a scan
+- [x] Current macOS C2 server addresses: daily ThreatFox `ip:port` IOCs of `osx.*` families (confidence 75+, last 30 days) in the signed feed, one `outbound` rule per family; no hand-written C2 rules, since published addresses go stale within days
 - [x] `summary`, `remedy` and `references` fields per rule
 
 ## Phase 4: Rule supply chain hardening (in progress)

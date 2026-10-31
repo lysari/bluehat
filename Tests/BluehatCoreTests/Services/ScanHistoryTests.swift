@@ -6,7 +6,7 @@ struct ScanHistoryTests {
     let fileURL = FileManager.default.temporaryDirectory.appending(path: "bluehat-history-\(UUID().uuidString).json")
 
     func finding(_ id: String, severity: Severity = .high, detail: String = "detail") -> Finding {
-        let rule = Rule(id: id, title: id, severity: severity, category: .malware, check: .path, patterns: nil, paths: ["/x"], ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
+        let rule = Rule(id: id, title: id, severity: severity, category: .malware, check: .path, patterns: nil, paths: ["/x"], ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, hosts: nil, summary: nil, remedy: nil, references: nil)
         return Finding(rule: rule, detail: detail, path: nil)
     }
 

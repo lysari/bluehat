@@ -22,7 +22,7 @@ struct SystemExtensionTests {
         """
 
     static func rule(teams: [String]?, bundles: [String]?) -> Rule {
-        Rule(id: "extension.unknown-vendor", title: "Unknown vendor", severity: .medium, category: .persistence, check: .systemExtension, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: teams, bundles: bundles, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
+        Rule(id: "extension.unknown-vendor", title: "Unknown vendor", severity: .medium, category: .persistence, check: .systemExtension, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: teams, bundles: bundles, minimumVersion: nil, hosts: nil, summary: nil, remedy: nil, references: nil)
     }
 
     @Test func parsesSystemExtensionsWithTeamAndState() {

@@ -21,7 +21,7 @@ struct XProtectTests {
     }
 
     static func rule(minimumVersion: Int) -> Rule {
-        Rule(id: "xprotect.outdated", title: "Outdated", severity: .medium, category: .hardening, check: .xprotect, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: minimumVersion, summary: nil, remedy: nil, references: nil)
+        Rule(id: "xprotect.outdated", title: "Outdated", severity: .medium, category: .hardening, check: .xprotect, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: minimumVersion, hosts: nil, summary: nil, remedy: nil, references: nil)
     }
 
     @Test func readsTheShortVersionFromInfoPlist() {

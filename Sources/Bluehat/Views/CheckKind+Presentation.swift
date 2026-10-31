@@ -22,6 +22,7 @@ extension CheckKind {
         case .projectFile: "Project files"
         case .systemExtension: "System extensions"
         case .xprotect: "XProtect"
+        case .outbound: "Connections"
         }
     }
 
@@ -45,6 +46,7 @@ extension CheckKind {
         case .projectFile: "doc.text.magnifyingglass"
         case .systemExtension: "memorychip"
         case .xprotect: "checkmark.shield"
+        case .outbound: "antenna.radiowaves.left.and.right"
         }
     }
 
@@ -68,6 +70,7 @@ extension CheckKind {
         case .projectFile: "Don't run the project: no npm install, npm run dev or other scripts. Open the file in a plain text editor, go to the reported line and scroll far to the right, since payloads hide after long runs of spaces. Compare it with the original repository. If the project came from a stranger or a job interview, delete it. If you already ran it, from another device rotate your npm, GitHub and cloud tokens and SSH keys, and check Bluehat's other findings for what it left behind."
         case .systemExtension: "If you know the app it came from, ignore this finding. Otherwise open System Settings › General › Login Items & Extensions, turn the extension off, and delete the app that installed it. For a kernel extension, run the vendor's uninstaller and restart."
         case .xprotect: "Open System Settings › General › Software Update, click the info button next to Automatic Updates, and turn on Install Security Responses and system files. Stay online and restart; macOS updates XProtect on its own. Scan again a day later."
+        case .outbound: "Open Activity Monitor, search for the process named above, and quit it (Force Quit if it comes back). Then scan again and remove the launch item, app or file that started it. If it was malware, change your passwords from another device, starting with email, Apple Account and banking. If you know the app and trust it, ignore this finding."
         }
     }
 }

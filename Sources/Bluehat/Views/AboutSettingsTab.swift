@@ -42,6 +42,7 @@ struct AboutSettingsTab: View {
             Section {
                 LabeledContent("Fingerprints", value: store.malwareFeed.map { $0.hashes.count.formatted() } ?? "Not loaded yet")
                 LabeledContent("npm packages", value: store.malwareFeed.map { $0.packages.count.formatted() } ?? "Not loaded yet")
+                LabeledContent("C2 addresses", value: store.malwareFeed.map { $0.hosts.count.formatted() } ?? "Not loaded yet")
                 LabeledContent("Last updated", value: store.malwareFeed?.issued?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
                 LabeledContent("Expires", value: store.malwareFeed?.expires?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown")
                 LabeledContent("Feed key") {
@@ -52,7 +53,7 @@ struct AboutSettingsTab: View {
             } header: {
                 Text("Malware fingerprints")
             } footer: {
-                Text("Updated daily from MalwareBazaar and OSV. The feed key can sign only the fingerprints and npm packages, never the rules; the rules keys can sign both.")
+                Text("Updated daily from MalwareBazaar, OSV and ThreatFox. The feed key can sign only the fingerprints, npm packages and C2 addresses, never the rules; the rules keys can sign both.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }

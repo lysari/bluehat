@@ -12,7 +12,7 @@ struct InstallationTests {
     }
 
     func rule(_ id: String, _ ranges: [VersionRange], product: SoftwareProduct = .node) -> Rule {
-        Rule(id: id, title: "Test", severity: .high, category: .rce, check: .softwareVersion, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: product, advisory: "CVE-2024-0001", ranges: ranges, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, summary: nil, remedy: nil, references: nil)
+        Rule(id: id, title: "Test", severity: .high, category: .rce, check: .softwareVersion, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: product, advisory: "CVE-2024-0001", ranges: ranges, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, hosts: nil, summary: nil, remedy: nil, references: nil)
     }
 
     func fixed(_ introduced: String, _ fixed: String) -> VersionRange {
