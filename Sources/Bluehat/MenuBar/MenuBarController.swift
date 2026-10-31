@@ -5,16 +5,20 @@ import Observation
 final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let panel: MenuBarPanel
-    private var symbolTask: Task<Void, Never>?
+    private var stateTask: Task<Void, Never>?
 
     init(store: ScanStore) {
         panel = MenuBarPanel(rootView: ScanPanel(store: store))
         super.init()
         statusItem.button?.target = self
         statusItem.button?.action = #selector(togglePanel)
-        symbolTask = Task { [statusItem] in
-            for await symbol in Observations({ store.menuBarSymbol }) {
-                statusItem.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Bluehat")
+        statusItem.button?.imagePosition = .imageLeading
+        statusItem.button?.font = Typography.menuBarCount
+        stateTask = Task { [statusItem] in
+            for await state in Observations({ store.menuBarState }) {
+                statusItem.button?.image = state.image
+                statusItem.button?.title = state.title
+                statusItem.button?.setAccessibilityLabel(state.accessibilityLabel)
             }
         }
         NotificationCenter.default.addObserver(self, selector: #selector(updatePanelLevel), name: NSWindow.didBecomeKeyNotification, object: nil)
@@ -23,7 +27,7 @@ final class MenuBarController: NSObject {
     }
 
     isolated deinit {
-        symbolTask?.cancel()
+        stateTask?.cancel()
     }
 
     @objc private func togglePanel() {

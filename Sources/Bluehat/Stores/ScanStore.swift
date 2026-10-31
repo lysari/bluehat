@@ -14,6 +14,10 @@ final class ScanStore {
         case manual, scheduled
     }
 
+    enum MenuBarState {
+        case ready, scanning(progress: Double), safe, issues(count: Int), failed
+    }
+
     enum InstallationError: LocalizedError {
         case changedSinceScan
 
@@ -100,8 +104,14 @@ final class ScanStore {
         settings.schedule.nextScan(after: lastScanAt, now: .now)
     }
 
-    var menuBarSymbol: String {
-        issues.contains { $0.rule.severity >= .medium } ? "exclamationmark.shield.fill" : "shield.lefthalf.filled"
+    var menuBarState: MenuBarState {
+        if failure != nil { return .failed }
+        switch phase {
+        case .idle: return .ready
+        case .loadingRules: return .scanning(progress: 0)
+        case .scanning: return .scanning(progress: progress)
+        case .finished: return issues.isEmpty ? .safe : .issues(count: issues.count)
+        }
     }
 
     func scan(trigger: Trigger = .manual) async {

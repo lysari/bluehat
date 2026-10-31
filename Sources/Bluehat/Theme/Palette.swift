@@ -27,6 +27,7 @@ enum Palette {
     static let emblemGlossOpacity = 0.38
     static let emblemGroundShadowOpacity = 0.35
     static let emblemGlyphShadowOpacity = 0.3
+    static let menuBarRingTrackOpacity = 0.45
 
     static func severity(_ severity: Severity) -> Color {
         switch severity {

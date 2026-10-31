@@ -53,4 +53,9 @@ enum Metrics {
     static let findingSymbol: CGFloat = 12
     static let checkSymbolWidth: CGFloat = 18
     static let severityDot: CGFloat = 6
+    static let menuBarCanvasHeight: CGFloat = 18
+    static let menuBarSymbolSize: CGFloat = 16
+    static let menuBarMarkRatio: CGFloat = 0.5
+    static let menuBarRingRatio: CGFloat = 0.42
+    static let menuBarRingLineWidth: CGFloat = 1.6
 }

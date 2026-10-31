@@ -10,7 +10,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 ## Flow
 
 1. Install and open the app: `devbox run install` (or `devbox run start` to run it from `.build`). The first launch shows a welcome window to turn on scheduled scans and launch at login.
-2. Click the shield in the menu bar, then **Scan Now**. The ring fills per check area as the scan runs. The panel stays open above other windows until you click the shield again.
+2. Click the shield in the menu bar (after a scan it shows the number of issues beside it), then **Scan Now**. The ring fills per check area as the scan runs. The panel stays open above other windows until you click the shield again.
 3. Click a finding for what was found, why it matters, how to fix it, and source links. **Ignore** hides that exact finding; undo it in Settings › Ignored. A software version finding also offers **Update** (opens Terminal with the upgrade command, which runs only after you press Return) and **Remove** (moves an nvm, Volta, fnm, asdf, mise, pyenv or rbenv copy to the Trash after you confirm its path, or opens Terminal with `brew` for a Homebrew copy). Bluehat never changes anything unless you ask, and never deletes permanently.
 4. Settings (Cmd+, from the `⋯` menu): launch at login, scan schedule and new-issue notifications, project folders to check for npm projects (pre-filled with ~/Developer, ~/Projects, ~/Code and similar folders that exist), scan history (last 30 scans with what changed), ignored findings, and in About the rules keys, the fingerprint and npm package counts with the feed's last update and expiry, and the feed key.
 

@@ -38,7 +38,8 @@ final class MenuBarPanel: NSPanel {
         contentView = background
 
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(windowMoved), name: NSWindow.didMoveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(anchorFrameChanged), name: NSWindow.didMoveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(anchorFrameChanged), name: NSWindow.didResizeNotification, object: nil)
     }
 
     override var canBecomeKey: Bool {
@@ -55,7 +56,7 @@ final class MenuBarPanel: NSPanel {
         place(size: frame.size)
     }
 
-    @objc private func windowMoved(_ notification: Notification) {
+    @objc private func anchorFrameChanged(_ notification: Notification) {
         guard let anchor, notification.object as? NSWindow === anchor else { return }
         place(size: frame.size)
     }

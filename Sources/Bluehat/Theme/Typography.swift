@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum Typography {
@@ -13,4 +14,5 @@ enum Typography {
     static let detail = Font.system(size: 11).monospaced()
     static let count = Font.system(size: 11, weight: .semibold).monospacedDigit()
     static let headerAction = Font.system(size: 15)
+    @MainActor static let menuBarCount = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular)
 }
