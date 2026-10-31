@@ -7,6 +7,8 @@ description: Use when the user wants to check their Mac for RCE, malware, worms,
 
 Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a **Scan This Mac** button. A scan downloads the rule list from `https://raw.githubusercontent.com/lysari/bluehat-rules/main/rules.signed.json`, verifies its Ed25519 signature against the owner's public keys built into the app, and runs every rule with the check types built into the app. It also downloads the malware fingerprint feed (`feed.signed.json`, SHA-256 hashes of current macOS malware from MalwareBazaar) and checks Downloads, Desktop and shared folders against it. The same feed can list known-malicious npm package versions (hijacked or worm-published releases), which Bluehat looks for in the lockfiles of your project folders (Settings › Projects) and in the global `node_modules` of each Node.js install, reading files only. Rules can also flag code injected into the config files (`tailwind.config.js`, `next.config.js` and similar) and install scripts of those projects, as fake job interview repositories do. The feed is signed by a separate CI key that the app accepts only for fingerprints, never for rules; if the feed is unavailable, the scan runs with the rules alone. Rules and fingerprints are data only: they cannot add commands, so a compromised repository cannot make the app run code.
 
+`README.md` is the public overview (features, privacy, install, build, architecture); update it when checks, commands or network behaviour change.
+
 ## Flow
 
 1. Install and open the app: `devbox run install` (or `devbox run start` to run it from `.build`). The first launch shows a welcome window to turn on scheduled scans and launch at login.
