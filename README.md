@@ -71,7 +71,7 @@ run anything.
 | 📦 **App signing** | Apps in Applications and Downloads that are unsigned, ad-hoc signed or changed after signing. |
 | 🔑 **SSH keys** | Every key in `~/.ssh/authorized_keys`. Ignore the ones you know, and only new ones come back. |
 | 🧾 **Profiles** | Configuration profiles that set a proxy, DNS, root certificate, content filter or browser policy. |
-| 🧩 **Extensions** | Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions from outside the official stores, or with cookie access on every site, debugger or proxy permissions. |
+| 🧩 **Extensions** | Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions from outside the official stores, with cookie access on every site, debugger or proxy permissions, or listed in published hijack and spyware campaign reports. |
 | 🧰 **Software versions** | Node.js, Python, PHP, Ruby, Git and OpenSSL installs (Homebrew, nvm, Volta, fnm, asdf, mise, pyenv, rbenv, python.org, the Node.js installer) with known CVEs. **Update** opens Terminal with the upgrade command, or the download page for an installer copy; **Move to Trash** removes a version-manager copy, and **Remove** opens Terminal with `brew` for a Homebrew one. |
 | 📚 **npm packages** | Known-malicious package versions in the lockfiles of your projects and in global `node_modules`, such as the hijacked chalk and debug releases and the Shai-Hulud worm. |
 | 🕵️ **Project files** | Code hidden in `tailwind.config.js`, `next.config.js` and other config files, and install scripts that download and run code, as fake interview repositories do. |

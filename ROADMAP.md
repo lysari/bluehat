@@ -42,7 +42,8 @@ New check types (each needs an app update; rules then use them):
 - [x] Older apps skip rules with unknown check types instead of rejecting the rulebook
 - [ ] `notarization`: Developer ID apps that aren't notarized (Gatekeeper's online verdict, too slow to run every scan today)
 - [x] `browserExtension`: Chrome, Brave, Edge, Arc, Chromium, Vivaldi and Firefox extensions; flags extensions outside official stores, cookie access on every site, debugger and proxy permissions
-- [ ] Known-bad extension IDs from published compromise reports
+- [x] Known-bad extension IDs from published compromise reports, matched by ID with `browserExtension` patterns: Cyberhaven campaign (Secure Annex, 22 IDs; 10 more that were fixed since at low severity), GitLab's CSP-stripping cluster (16), RedDirection (18) and ShadyPanda (159) from Koi
+- [ ] Extension version in the `browserExtension` descriptor, so hijacked extensions that were fixed since (and one-release hijacks such as a single bad wallet update) are flagged only in their bad versions
 - [x] `profile`: user configuration profiles, flagging proxy, DNS, root certificate, content filter and browser policy payloads (computer-wide profiles need root)
 - [x] `systemExtension`: system extensions not from a known team ID and loaded third-party kernel extensions not from a known bundle ID
 - [x] `softwareVersion`: vulnerable developer tool versions (Node.js, PHP, Python, OpenSSL, Git, Ruby), rules generated from OSV.dev
@@ -56,7 +57,7 @@ Rule content:
 
 - [x] Current stealer indicators from primary reports: AMOS backdoor (Trend Micro), CrashStealer (Jamf), ClickLock (RH-ISAC), Sapphire Sleet (Microsoft), ICMacOS (SOCRadar)
 - [x] Behaviour rules: stealer upload/zip/fake password prompt/`curl | osascript`, stealer backdoor processes, Apple-named launch items outside /System
-- [ ] Indicators for Poseidon, Banshee, Odyssey and SHub from their primary reports (SHub's `com.google.keystone.agent.plist` collides with Google's real updater, so it needs a program-path rule, not a file-path rule)
+- [x] Indicators for Poseidon (Malwarebytes, NCSC), Banshee (Elastic, Check Point), Odyssey (Jamf, CYFIRMA) and SHub Reaper (SentinelOne, Moonlock): staging folders and backdoor files, upload and bot-loop processes, and a program-path rule for SHub's fake `GoogleUpdate.app` instead of its `com.google.keystone.agent.plist` name, which Google's real updater also uses. Odyssey's randomly named LaunchDaemon has no published fixed name or program, so the generic launch item rules cover it
 - [x] SHA-256 hashes of current macOS malware samples: daily MalwareBazaar fingerprint feed (`feed.signed.json`), one critical rule per family, optional so a missing feed never blocks a scan
 - [x] `summary`, `remedy` and `references` fields per rule
 
