@@ -4,6 +4,7 @@ import SwiftUI
 
 struct FindingDetailView: View {
     let finding: Finding
+    let store: ScanStore
     let onBack: () -> Void
     let onIgnore: () -> Void
     @Environment(\.openURL) private var openURL
@@ -69,9 +70,14 @@ struct FindingDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             section("How to fix") {
-                Text(finding.rule.remedy ?? finding.rule.check.fixHint)
-                    .font(Typography.body)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Metrics.spaceMedium) {
+                    Text(finding.rule.remedy ?? finding.rule.check.fixHint)
+                        .font(Typography.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if finding.rule.check == .softwareVersion, let path = finding.path {
+                        InstallationActions(path: path, store: store, onMovedToTrash: onBack)
+                    }
+                }
             }
             if !references.isEmpty {
                 section("Learn more") {
@@ -84,7 +90,7 @@ struct FindingDetailView: View {
                 }
             }
             HStack {
-                Text("Bluehat only reports. It never changes or deletes anything.")
+                Text("Bluehat never changes anything unless you ask.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.tertiaryText)
                 Spacer()

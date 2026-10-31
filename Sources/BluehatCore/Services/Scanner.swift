@@ -4,8 +4,6 @@ import Security
 import Synchronization
 
 public struct Scanner: Sendable {
-    typealias Installation = (product: SoftwareProduct, version: SoftwareVersion, path: String)
-
     static let launchItemDirectories = ["~/Library/LaunchAgents", "/Library/LaunchAgents", "/Library/LaunchDaemons"]
     static let shellProfileFiles = ["~/.zshrc", "~/.zprofile", "~/.zshenv", "~/.zlogin", "~/.bashrc", "~/.bash_profile", "~/.profile"]
     static let hashedDirectories = ["~/Downloads", "~/Desktop", "/Users/Shared", "/private/tmp"]
@@ -22,21 +20,21 @@ public struct Scanner: Sendable {
     ]
     static let firefoxProfiles = "~/Library/Application Support/Firefox/Profiles"
     static let homebrewCellars = ["/opt/homebrew/Cellar", "/usr/local/Cellar"]
-    static let versionDirectories: [(product: SoftwareProduct, directory: String)] = [
-        (.node, "~/.nvm/versions/node"),
-        (.node, "~/.volta/tools/image/node"),
-        (.node, "~/Library/Application Support/fnm/node-versions"),
-        (.node, "~/.local/share/fnm/node-versions"),
-        (.node, "~/.asdf/installs/nodejs"),
-        (.node, "~/.local/share/mise/installs/node"),
-        (.python, "~/.pyenv/versions"),
-        (.python, "~/.asdf/installs/python"),
-        (.python, "~/.local/share/mise/installs/python"),
-        (.ruby, "~/.rbenv/versions"),
-        (.ruby, "~/.asdf/installs/ruby"),
-        (.ruby, "~/.local/share/mise/installs/ruby"),
-        (.php, "~/.asdf/installs/php"),
-        (.php, "~/.local/share/mise/installs/php"),
+    static let versionDirectories: [(product: SoftwareProduct, manager: InstallManager, directory: String)] = [
+        (.node, .nvm, "~/.nvm/versions/node"),
+        (.node, .volta, "~/.volta/tools/image/node"),
+        (.node, .fnm, "~/Library/Application Support/fnm/node-versions"),
+        (.node, .fnm, "~/.local/share/fnm/node-versions"),
+        (.node, .asdf, "~/.asdf/installs/nodejs"),
+        (.node, .mise, "~/.local/share/mise/installs/node"),
+        (.python, .pyenv, "~/.pyenv/versions"),
+        (.python, .asdf, "~/.asdf/installs/python"),
+        (.python, .mise, "~/.local/share/mise/installs/python"),
+        (.ruby, .rbenv, "~/.rbenv/versions"),
+        (.ruby, .asdf, "~/.asdf/installs/ruby"),
+        (.ruby, .mise, "~/.local/share/mise/installs/ruby"),
+        (.php, .asdf, "~/.asdf/installs/php"),
+        (.php, .mise, "~/.local/share/mise/installs/php"),
     ]
     static let pythonFrameworkVersions = "/Library/Frameworks/Python.framework/Versions"
     static let nodeInstallerPrefix = "/usr/local"
@@ -199,22 +197,26 @@ public struct Scanner: Sendable {
         }
     }
 
-    static func installedSoftware() -> [Installation] {
+    public static func installedSoftware() -> [Installation] {
         homebrewCellars.flatMap(cellarInstalls)
-            + versionDirectories.flatMap { versionedInstalls(of: $0.product, in: expand($0.directory)) }
+            + versionDirectories.flatMap { versionedInstalls(of: $0.product, by: $0.manager, in: expand($0.directory)) }
             + frameworkPythons(in: pythonFrameworkVersions)
             + installerNode(prefix: nodeInstallerPrefix)
+    }
+
+    public static func installation(at path: String, in installs: [Installation] = installedSoftware()) -> Installation? {
+        installs.first { $0.path == path }
     }
 
     static func cellarInstalls(in cellar: String) -> [Installation] {
         let formulas = (try? FileManager.default.contentsOfDirectory(atPath: cellar)) ?? []
         return formulas.sorted().flatMap { formula -> [Installation] in
             guard let product = SoftwareProduct.allCases.first(where: { formula == $0.rawValue || formula.hasPrefix($0.rawValue + "@") }) else { return [] }
-            return versionedInstalls(of: product, in: "\(cellar)/\(formula)")
+            return versionedInstalls(of: product, by: .homebrew, in: "\(cellar)/\(formula)")
         }
     }
 
-    static func versionedInstalls(of product: SoftwareProduct, in directory: String) -> [Installation] {
+    static func versionedInstalls(of product: SoftwareProduct, by manager: InstallManager, in directory: String) -> [Installation] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
         return names.sorted().compactMap { name in
             let path = "\(directory)/\(name)"
@@ -222,7 +224,7 @@ public struct Scanner: Sendable {
                 fileType(atPath: path) == .typeDirectory,
                 let version = SoftwareVersion(name.replacing(/_[0-9]{1,4}$/, with: ""), for: product)
             else { return nil }
-            return (product, version, path)
+            return Installation(product: product, version: version, path: path, manager: manager)
         }
     }
 
@@ -236,7 +238,7 @@ public struct Scanner: Sendable {
                 let quoted = defines(in: readText("\(path)/include/python\(name)/patchlevel.h"))["PY_VERSION"],
                 let version = SoftwareVersion(quoted.trimmingCharacters(in: CharacterSet(charactersIn: "\"")), for: .python)
             else { return nil }
-            return (.python, version, path)
+            return Installation(product: .python, version: version, path: path, manager: .pythonOrg)
         }
     }
 
@@ -249,7 +251,7 @@ public struct Scanner: Sendable {
             parts.count == 3,
             let version = SoftwareVersion(parts.joined(separator: "."), for: .node)
         else { return [] }
-        return [(.node, version, binary)]
+        return [Installation(product: .node, version: version, path: binary, manager: .nodeInstaller)]
     }
 
     static func defines(in text: String) -> [String: String] {

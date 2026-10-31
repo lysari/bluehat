@@ -12,6 +12,7 @@ enum Palette {
     static let primaryText = Color(nsColor: .labelColor)
     static let secondaryText = Color(nsColor: .secondaryLabelColor)
     static let tertiaryText = Color(nsColor: .tertiaryLabelColor)
+    static let panelMaterial = NSVisualEffectView.Material.menu
     static let cardFill = Color(nsColor: .quaternarySystemFill)
     static let cardStroke = Color(nsColor: .separatorColor)
     static let tintFillOpacity = 0.16

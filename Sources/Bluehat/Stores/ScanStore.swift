@@ -14,6 +14,14 @@ final class ScanStore {
         case manual, scheduled
     }
 
+    enum InstallationError: LocalizedError {
+        case changedSinceScan
+
+        var errorDescription: String? {
+            "This copy changed since the scan. Scan again, then try once more."
+        }
+    }
+
     private enum Key {
         static let lastScanAt = "lastScanAt"
     }
@@ -137,6 +145,12 @@ final class ScanStore {
             failure = error.localizedDescription
             phase = .idle
         }
+    }
+
+    func moveToTrash(_ installation: Installation) throws {
+        guard installation.isTrashable, Scanner.installation(at: installation.path) == installation else { throw InstallationError.changedSinceScan }
+        try FileManager.default.trashItem(at: URL(fileURLWithPath: installation.path, isDirectory: true), resultingItemURL: nil)
+        findings.removeAll { $0.rule.check == .softwareVersion && $0.path == installation.path }
     }
 
     nonisolated private static func loadMalwareFeed() async -> Result<LoadedFeed<MalwareFeed>, RuleFeedError> {

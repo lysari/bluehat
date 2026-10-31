@@ -4,28 +4,45 @@ import SwiftUI
 
 struct ScanPanel: View {
     let store: ScanStore
-    @State private var selectedFinding: Finding?
+    @State private var selectedFindingID: Finding.ID?
     @Environment(\.openURL) private var openURL
     @Environment(\.openSettings) private var openSettings
 
+    private var selectedFinding: Finding? {
+        store.visibleFindings.first { $0.id == selectedFindingID }
+    }
+
     var body: some View {
+        HStack(alignment: .top, spacing: Metrics.spaceSection) {
+            overview
+            findingsColumn
+        }
+        .padding(Metrics.panelPadding)
+        .animation(Motion.standard, value: store.phase)
+    }
+
+    private var findingsColumn: some View {
         ZStack(alignment: .top) {
             if let selectedFinding {
-                FindingDetailView(finding: selectedFinding) {
-                    self.selectedFinding = nil
-                } onIgnore: {
-                    store.settings.ignore(selectedFinding)
-                    self.selectedFinding = nil
+                ScrollView {
+                    FindingDetailView(finding: selectedFinding, store: store) {
+                        selectedFindingID = nil
+                    } onIgnore: {
+                        store.settings.ignore(selectedFinding)
+                        selectedFindingID = nil
+                    }
                 }
+                .scrollClipDisabled()
+                .id(selectedFinding.id)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
-                overview
+                findingsSection
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .padding(Metrics.panelPadding)
-        .frame(width: Metrics.panelWidth)
-        .animation(Motion.standard, value: store.phase)
+        .frame(width: Metrics.findingsColumnWidth)
+        .frame(minHeight: 0, idealHeight: 0, maxHeight: .infinity, alignment: .top)
+        .clipShape(Rectangle().inset(by: -Metrics.cardStrokeWidth))
         .animation(Motion.standard, value: selectedFinding?.id)
     }
 
@@ -45,12 +62,11 @@ struct ScanPanel: View {
                     .foregroundStyle(Palette.notice)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !store.visibleFindings.isEmpty {
-                findingsSection
-            }
             checksSection
             footer
         }
+        .frame(width: Metrics.overviewColumnWidth)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var header: some View {
@@ -178,13 +194,15 @@ struct ScanPanel: View {
     private var findingsSection: some View {
         VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
             sectionTitle("Findings")
-            ViewThatFits(in: .vertical) {
-                findingRows
-                ScrollView { findingRows }
+            Group {
+                if store.visibleFindings.isEmpty {
+                    findingsPlaceholder
+                } else {
+                    ScrollView { findingRows }
+                        .padding(.horizontal, Metrics.cardPadding)
+                }
             }
-            .frame(maxHeight: Metrics.findingsMaxHeight)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, Metrics.cardPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .card()
         }
     }
@@ -192,12 +210,42 @@ struct ScanPanel: View {
     private var findingRows: some View {
         VStack(spacing: 0) {
             ForEach(store.visibleFindings) { finding in
-                FindingRow(finding: finding) { selectedFinding = finding }
+                FindingRow(finding: finding) { selectedFindingID = finding.id }
                 if finding.id != store.visibleFindings.last?.id {
                     Divider()
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var findingsPlaceholder: some View {
+        switch store.phase {
+        case .finished:
+            placeholder(tint: Palette.safe, symbol: "checkmark", title: "No findings", subtitle: store.ignoredCount == 0 ? "Every check passed." : "\(counted(store.ignoredCount, "finding")) ignored. Undo in Settings › Ignored.")
+        case .loadingRules, .scanning:
+            placeholder(tint: Palette.idle, symbol: "magnifyingglass", title: "Nothing found yet", subtitle: "Findings appear here as each check finishes.")
+        case .idle:
+            placeholder(tint: Palette.idle, symbol: "magnifyingglass", title: "No findings yet", subtitle: "Scan your Mac to see findings here.")
+        }
+    }
+
+    private func placeholder(tint: Color, symbol: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: Metrics.spaceLarge) {
+            ShieldEmblem(tint: tint, face: .symbol(symbol), size: Metrics.detailEmblem, isFloating: false)
+                .accessibilityHidden(true)
+            VStack(spacing: Metrics.spaceTight) {
+                Text(title)
+                    .font(Typography.rowTitle)
+                Text(subtitle)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Metrics.cardPadding)
+        .accessibilityElement(children: .combine)
     }
 
     private var checksSection: some View {
@@ -232,5 +280,6 @@ struct ScanPanel: View {
             .font(Typography.sectionTitle)
             .foregroundStyle(Palette.secondaryText)
             .padding(.leading, Metrics.spaceTight)
+            .accessibilityAddTraits(.isHeader)
     }
 }

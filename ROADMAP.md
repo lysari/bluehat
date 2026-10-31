@@ -4,7 +4,7 @@ Updated 2026-10-31. Each phase ships as a working app; later phases depend on th
 
 ## Phase 0: Foundation (done)
 
-- [x] Menu bar app with a Scan button (SwiftUI `MenuBarExtra`)
+- [x] Menu bar app with a Scan button (`NSStatusItem` with a floating SwiftUI panel)
 - [x] Rules downloaded only from `lysari/bluehat-rules`, Ed25519-signed, verified against the built-in public key
 - [x] Data-only rules over 8 built-in check types; no redirects, 2 MB cap, rollback guard, verified offline cache
 - [x] `bluehat-sign` CLI with the private key in the login Keychain

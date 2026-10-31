@@ -3,7 +3,7 @@
 # Project Rules
 
 ## Tech Stack
-- Language & Framework: Swift 6 (SwiftUI, macOS 26+ `MenuBarExtra`)
+- Language & Framework: Swift 6 (SwiftUI views, macOS 26+; the menu bar item is an AppKit `NSStatusItem` with a floating `NSPanel`)
 - Package Manager: Swift Package Manager, run through Devbox with the Xcode toolchain
 
 ## Architecture & Directory Map
@@ -11,10 +11,11 @@
 ```text
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
-│   ├── Models/                  # Rule, Rulebook, MalwareFeed, Finding, IgnoredFinding, ScanSchedule, ScanRecord
+│   ├── Models/                  # Rule, Rulebook, MalwareFeed, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
 │   ├── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ScanHistory (saved scans)
 │   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads)
-├── Bluehat/                     # menu bar app
+├── Bluehat/                     # menu bar app: BluehatApp (scenes), AppDelegate (owns ScanStore, starts the menu bar)
+│   ├── MenuBar/                 # AppKit glue: MenuBarController (status item, panel level), MenuBarPanel (floating NSPanel hosting ScanPanel)
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
 │   ├── Stores/                  # @Observable state: ScanStore, SettingsStore
 │   ├── Utilities/               # shared view helpers with doc comments: card(), counted()
