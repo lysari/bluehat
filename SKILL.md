@@ -30,7 +30,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 |---|---|
 | `devbox run build` | Debug build |
 | `devbox run test` | Run the test suite |
-| `devbox run bundle` | Build `.build/Bluehat.app` (release, ad-hoc signed, menu bar only) |
+| `devbox run bundle` | Build `.build/Bluehat.app` (release, menu bar only), signed with the first "Apple Development" identity in the Keychain so macOS keeps folder permissions across rebuilds; ad-hoc signed when there is none |
 | `devbox run start` | Bundle and open the app from `.build` |
 | `devbox run install` | Bundle, copy to `/Applications/Bluehat.app`, and open it |
 | `devbox run icon` | Regenerate `assets/AppIcon.icns` from `scripts/make-icon.swift` |
