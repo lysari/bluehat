@@ -4,7 +4,7 @@ import Testing
 
 struct IgnoredFindingTests {
     func finding(detail: String, path: String? = nil) -> Finding {
-        let rule = Rule(id: "port.remote-access", title: "Remote access", severity: .info, category: .hardening, check: .listeningPort, patterns: nil, paths: nil, ports: [22], hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, summary: nil, remedy: nil, references: nil)
+        let rule = Rule(id: "port.remote-access", title: "Remote access", severity: .info, category: .hardening, check: .listeningPort, patterns: nil, paths: nil, ports: [22], hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, summary: nil, remedy: nil, references: nil)
         return Finding(rule: rule, detail: detail, path: path)
     }
 

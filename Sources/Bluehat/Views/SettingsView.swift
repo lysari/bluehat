@@ -9,6 +9,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             ScheduleSettingsTab(store: store)
                 .tabItem { Label("Schedule", systemImage: "clock") }
+            ProjectsSettingsTab(settings: store.settings)
+                .tabItem { Label("Projects", systemImage: "folder") }
             HistorySettingsTab(history: store.history)
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             IgnoredSettingsTab(settings: store.settings)

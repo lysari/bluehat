@@ -18,6 +18,8 @@ extension CheckKind {
         case .profile: "Profiles"
         case .browserExtension: "Extensions"
         case .softwareVersion: "Software versions"
+        case .npmPackage: "npm packages"
+        case .projectFile: "Project files"
         }
     }
 
@@ -37,6 +39,8 @@ extension CheckKind {
         case .profile: "gearshape.2"
         case .browserExtension: "puzzlepiece.extension"
         case .softwareVersion: "shippingbox"
+        case .npmPackage: "cube.transparent"
+        case .projectFile: "doc.text.magnifyingglass"
         }
     }
 
@@ -56,6 +60,8 @@ extension CheckKind {
         case .profile: "Open System Settings › General › Device Management, select the profile, and remove it unless your school or company installed it."
         case .browserExtension: "Open the browser's extensions page (for Chrome, chrome://extensions), find the extension by its ID with Developer mode on, and remove it. Then change passwords for sites you used while it was installed."
         case .softwareVersion: "Upgrade to the fixed version named above with the tool that installed this copy (for example brew upgrade, nvm install or pyenv install), switch your projects to it, then remove the old copy (brew cleanup, nvm uninstall or pyenv uninstall). With no fixed release listed, move to a supported release line."
+        case .npmPackage: "Remove the package or pin a version that isn't listed, delete node_modules, and reinstall from a clean lockfile with npm ci --ignore-scripts. These attacks steal secrets, so from another device rotate your npm, GitHub and cloud tokens and SSH keys, and check your GitHub account for repositories, workflows or keys you didn't add."
+        case .projectFile: "Don't run the project: no npm install, npm run dev or other scripts. Open the file in a plain text editor, go to the reported line and scroll far to the right, since payloads hide after long runs of spaces. Compare it with the original repository. If the project came from a stranger or a job interview, delete it. If you already ran it, from another device rotate your npm, GitHub and cloud tokens and SSH keys, and check Bluehat's other findings for what it left behind."
         }
     }
 }

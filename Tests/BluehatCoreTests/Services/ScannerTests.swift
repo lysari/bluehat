@@ -9,7 +9,7 @@ struct ScannerTests {
     }
 
     func rule(_ id: String, _ check: CheckKind, severity: Severity = .high, patterns: [String]? = nil, paths: [String]? = nil) -> Rule {
-        Rule(id: id, title: id, severity: severity, category: .malware, check: check, patterns: patterns, paths: paths, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, summary: nil, remedy: nil, references: nil)
+        Rule(id: id, title: id, severity: severity, category: .malware, check: check, patterns: patterns, paths: paths, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, summary: nil, remedy: nil, references: nil)
     }
 
     @Test func reportsExistingPathOnly() throws {

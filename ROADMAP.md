@@ -44,6 +44,7 @@ New check types (each needs an app update; rules then use them):
 - [ ] Known-bad extension IDs from published compromise reports
 - [x] `profile`: user configuration profiles, flagging proxy, DNS, root certificate, content filter and browser policy payloads (computer-wide profiles need root)
 - [ ] `systemExtension`: system and kernel extensions not from known vendors
+- [x] `projectFile`: code injected into npm project config files and install scripts (rules pick file names and patterns; the app picks the projects)
 - [x] `sshKey`: every key in `~/.ssh/authorized_keys` with its fingerprint; ignore known keys so only new ones return
 - [ ] `outbound`: established connections to listed hosts or ports (C2 beacons)
 - [ ] `xprotect`: XProtect and MRT definitions too old

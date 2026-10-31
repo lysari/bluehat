@@ -11,8 +11,8 @@
 ```text
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
-│   ├── Models/                  # Rule, Rulebook, MalwareFeed, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
-│   ├── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ScanHistory (saved scans)
+│   ├── Models/                  # Rule, Rulebook, MalwareFeed, NpmPackage, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
+│   ├── Services/                # RuleFeed (download + verify of rules and the malware feed), Scanner (checks), ProjectFolders (project discovery), NpmInventory (lockfile and node_modules reading), ScanHistory (saved scans)
 │   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads)
 ├── Bluehat/                     # menu bar app: BluehatApp (scenes), AppDelegate (owns ScanStore, starts the menu bar)
 │   ├── MenuBar/                 # AppKit glue: MenuBarController (status item, panel level), MenuBarPanel (floating NSPanel hosting ScanPanel)
@@ -41,6 +41,7 @@ rules/                           # git submodule: lysari/bluehat-rules (clone wi
 ## Core Shared Helpers (Do Not Duplicate)
 - Rule download and verification: `RuleFeed`
 - Running system tools and matching text: `Scanner.runTool`, `Scanner.regexes`, `Scanner.matches`
+- Finding projects in the user's project folders: `ProjectFolders.directories(in:containing:)`
 - Reading any file an attacker can influence: `RegularFile.read` / `RegularFile.open` (never `FileHandle(forReadingAtPath:)`, `FileManager.contents` or `Data(contentsOf:)`)
 
 ## UI & Styling Conventions

@@ -49,22 +49,32 @@ public struct Scanner: Sendable {
     static let hashChunkBytes = 1 << 20
     static let localePattern = "^[A-Za-z0-9_-]{1,16}$"
 
-    public init() {}
+    let projectFolders: [String]
+
+    public init(projectFolders: [String] = []) {
+        self.projectFolders = projectFolders
+    }
 
     public func scan(_ rulebook: Rulebook, onAreaFinished: @Sendable (CheckKind, [Finding]) -> Void = { _, _ in }) -> (findings: [Finding], notices: [String]) {
         var findings: [Finding] = []
         var notices: [String] = []
+        var projects: [(path: String, files: Set<String>)]?
         for area in CheckKind.allCases {
             let rules = rulebook.rules.filter { $0.check == area }
             guard !rules.isEmpty else { continue }
-            let areaFindings = Self.findings(in: area, rules: rules, notices: &notices)
+            if projects == nil, [.npmPackage, .projectFile].contains(area) {
+                let walk = ProjectFolders.directories(in: projectFolders, containing: NpmInventory.projectFileNames)
+                projects = walk.directories
+                notices += [walk.notice].compactMap { $0 }
+            }
+            let areaFindings = Self.findings(in: area, rules: rules, projects: projects ?? [], notices: &notices)
             findings += areaFindings
             onAreaFinished(area, areaFindings)
         }
         return (findings.sorted { $0.rule.severity > $1.rule.severity }, notices)
     }
 
-    static func findings(in area: CheckKind, rules: [Rule], notices: inout [String]) -> [Finding] {
+    static func findings(in area: CheckKind, rules: [Rule], projects: [(path: String, files: Set<String>)], notices: inout [String]) -> [Finding] {
         switch area {
         case .path:
             return rules.flatMap { rule in
@@ -168,6 +178,63 @@ public struct Scanner: Sendable {
             }
         case .softwareVersion:
             return versionFindings(rules, installs: installedSoftware())
+        case .npmPackage:
+            let inventory = NpmInventory.packages(inProjects: projects, moduleDirectories: NpmInventory.moduleDirectories(for: installedSoftware()))
+            notices += [inventory.notice].compactMap { $0 }
+            return packageFindings(rules, packages: inventory.packages)
+        case .projectFile:
+            let checked = projectFileFindings(rules, projects: projects)
+            notices += [checked.notice].compactMap { $0 }
+            return checked.findings
+        }
+    }
+
+    static func projectFileFindings(_ rules: [Rule], projects: [(path: String, files: Set<String>)]) -> (findings: [Finding], notice: String?) {
+        let compiled = rules.map { (rule: $0, regexes: regexes($0.patterns)) }
+        var findings: [Finding] = []
+        var oversized: [String] = []
+        for project in projects where project.files.contains(NpmInventory.manifestName) {
+            for name in project.files.sorted() {
+                let path = "\(project.path)/\(name)"
+                let checks = compiled.filter { check in (check.rule.files ?? []).contains { fileName(name, matches: $0) } }
+                guard !checks.isEmpty, let file = RegularFile.open(atPath: path, followingSymlinks: false) else { continue }
+                let data = (try? file.handle.read(upToCount: maxReadBytes)) ?? Data()
+                try? file.handle.close()
+                let location = NSString(string: path).abbreviatingWithTildeInPath
+                if file.size > maxReadBytes { oversized.append(Finding.displayable(location)) }
+                let lines = String(decoding: data, as: UTF8.self).split(omittingEmptySubsequences: false) { $0 == "\n" || $0 == "\r\n" || $0 == "\r" }.map(String.init)
+                for check in checks {
+                    guard let index = lines.firstIndex(where: { matches(check.regexes, $0) }) else { continue }
+                    findings.append(Finding(rule: check.rule, detail: "Line \(index + 1) · \(location)", path: path))
+                }
+            }
+        }
+        guard !oversized.isEmpty else { return (findings, nil) }
+        return (findings, "Project file check read only the first \(Int64(maxReadBytes).formatted(.byteCount(style: .decimal))) of \(oversized.joined(separator: ", ")).")
+    }
+
+    static func fileName(_ name: String, matches glob: String) -> Bool {
+        let parts = glob.lowercased().split(separator: "*", omittingEmptySubsequences: false)
+        var rest = Substring(name.lowercased())
+        guard let first = parts.first, rest.hasPrefix(first) else { return false }
+        rest = rest.dropFirst(first.count)
+        guard let last = parts.last, parts.count > 1 else { return rest.isEmpty }
+        for part in parts.dropFirst().dropLast() {
+            guard let range = rest.range(of: part) else { return false }
+            rest = rest[range.upperBound...]
+        }
+        return rest.hasSuffix(last)
+    }
+
+    static func packageFindings(_ rules: [Rule], packages: [InstalledPackage]) -> [Finding] {
+        rules.flatMap { rule in
+            let listed = Dictionary(grouping: rule.packages ?? [], by: \.name)
+            return packages.compactMap { installed in
+                listed[installed.name]?.first { $0.versions.contains(installed.version) }.map { entry in
+                    let location = NSString(string: installed.path).abbreviatingWithTildeInPath
+                    return Finding(rule: rule, detail: "\(entry.advisory): \(installed.name) \(installed.version) · \(location)", path: installed.path)
+                }
+            }
         }
     }
 

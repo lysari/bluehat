@@ -128,8 +128,9 @@ final class ScanStore {
             phase = .scanning
             let clock = ContinuousClock()
             let start = clock.now
+            let projectFolders = settings.projectFolders
             let result = await Task.detached(priority: .userInitiated) {
-                Scanner().scan(rulebook) { area, areaFindings in
+                Scanner(projectFolders: projectFolders).scan(rulebook) { area, areaFindings in
                     Task { @MainActor in self.finishArea(area, areaFindings) }
                 }
             }.value

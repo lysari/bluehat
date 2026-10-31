@@ -12,6 +12,7 @@ final class SettingsStore {
         static let notifiesNewIssues = "notifiesNewIssues"
         static let hasSeenWelcome = "hasSeenWelcome"
         static let ignored = "ignoredFindings"
+        static let projectFolders = "projectFolders"
     }
 
     private let defaults: UserDefaults
@@ -35,6 +36,10 @@ final class SettingsStore {
         didSet { defaults.set(try? JSONEncoder().encode(ignored), forKey: Key.ignored) }
     }
 
+    private(set) var projectFolders: [String] {
+        didSet { defaults.set(projectFolders, forKey: Key.projectFolders) }
+    }
+
     private(set) var launchesAtLogin = false
     private(set) var loginItemProblem: String?
     private(set) var notificationProblem: String?
@@ -49,6 +54,7 @@ final class SettingsStore {
         notifiesNewIssues = defaults.bool(forKey: Key.notifiesNewIssues)
         hasSeenWelcome = defaults.bool(forKey: Key.hasSeenWelcome)
         ignored = defaults.data(forKey: Key.ignored).flatMap { try? JSONDecoder().decode([IgnoredFinding].self, from: $0) } ?? []
+        projectFolders = defaults.stringArray(forKey: Key.projectFolders) ?? ProjectFolders.existingDefaults()
         refreshLoginItem()
     }
 
@@ -63,6 +69,15 @@ final class SettingsStore {
 
     func stopIgnoring(_ entry: IgnoredFinding) {
         ignored.removeAll { $0.id == entry.id }
+    }
+
+    func addProjectFolder(_ path: String) {
+        guard !projectFolders.contains(path) else { return }
+        projectFolders.append(path)
+    }
+
+    func removeProjectFolder(_ path: String) {
+        projectFolders.removeAll { $0 == path }
     }
 
     func setLaunchesAtLogin(_ enabled: Bool) {

@@ -124,6 +124,77 @@ struct RuleTests {
         #expect(throws: RulebookError.self) { try Rulebook.decode(from: data) }
     }
 
+    @Test func decodesNpmPackageRule() throws {
+        let fields = #""packages": [{"name": "chalk", "versions": ["5.6.1"], "advisory": "MAL-2025-46969"}, {"name": "@scope/evil", "versions": "*", "advisory": "MAL-2025-1"}]"#
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "npmPackage", fields))).rules.first)
+        #expect(rule.check == .npmPackage)
+        #expect(rule.packages == [
+            MaliciousPackage(name: "chalk", versions: .only(["5.6.1"]), advisory: "MAL-2025-46969"),
+            MaliciousPackage(name: "@scope/evil", versions: .every, advisory: "MAL-2025-1"),
+        ])
+    }
+
+    @Test(arguments: [
+        #""packages": []"#,
+        #""patterns": ["x"]"#,
+        #""packages": [{"name": "Chalk", "versions": ["5.6.1"], "advisory": "MAL-2025-46969"}]"#,
+        #""packages": [{"name": "chalk", "versions": ["5.6.1"], "advisory": "mal-2025-46969"}]"#,
+        #""packages": [{"name": "chalk", "versions": [], "advisory": "MAL-2025-46969"}]"#,
+        #""packages": [{"name": "chalk", "versions": ["latest"], "advisory": "MAL-2025-46969"}]"#,
+        #""packages": [{"name": "chalk", "versions": "5.6.1", "advisory": "MAL-2025-46969"}]"#,
+        #""packages": [{"name": "chalk", "versions": ["5.6.1"]}]"#,
+    ])
+    func rejectsInvalidNpmPackageRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "npmPackage", fields))) }
+    }
+
+    @Test func rejectsTooManyPackagesOrVersions() {
+        let packages = Array(repeating: #"{"name": "chalk", "versions": "*", "advisory": "MAL-2025-1"}"#, count: Rulebook.maxEntriesPerRule + 1).joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "npmPackage", #""packages": [\#(packages)]"#))) }
+        let versions = (0...NpmPackage.maxVersionsPerPackage).map { #""1.0.\#($0)""# }.joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "npmPackage", #""packages": [{"name": "chalk", "versions": [\#(versions)], "advisory": "MAL-2025-1"}]"#))) }
+    }
+
+    @Test func decodesProjectFileRule() throws {
+        let fields = #""files": ["*.config.js", ".eslintrc.js", "package.json", "next.config.*"], "patterns": ["\\S[ \\t]{150,}\\S"]"#
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", fields))).rules.first)
+        #expect(rule.check == .projectFile)
+        #expect(rule.files == ["*.config.js", ".eslintrc.js", "package.json", "next.config.*"])
+        #expect(rule.patterns == [#"\S[ \t]{150,}\S"#])
+    }
+
+    @Test(arguments: [
+        #""patterns": ["x"]"#,
+        #""files": [], "patterns": ["x"]"#,
+        #""files": [""], "patterns": ["x"]"#,
+        #""files": ["*"], "patterns": ["x"]"#,
+        #""files": ["*.*"], "patterns": ["x"]"#,
+        #""files": ["src/tailwind.config.js"], "patterns": ["x"]"#,
+        #""files": ["/etc/passwd"], "patterns": ["x"]"#,
+        #""files": ["..config.js"], "patterns": ["x"]"#,
+        #""files": [".."], "patterns": ["x"]"#,
+        #""files": ["?.config.js"], "patterns": ["x"]"#,
+        #""files": ["[ab].config.js"], "patterns": ["x"]"#,
+        #""files": ["*.config.{js,ts}"], "patterns": ["x"]"#,
+        #""files": ["a\\b.js"], "patterns": ["x"]"#,
+        #""files": ["vite config.js"], "patterns": ["x"]"#,
+        #""files": ["*.config.js"]"#,
+        #""files": ["*.config.js"], "patterns": []"#,
+        #""files": ["*.config.js"], "patterns": ["(unclosed"]"#,
+    ])
+    func rejectsInvalidProjectFileRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", fields))) }
+    }
+
+    @Test func rejectsTooManyOrOverlongFileNames() {
+        let tooMany = (0...Rulebook.maxFileNames).map { #""f\#($0).js""# }.joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", #""files": [\#(tooMany)], "patterns": ["x"]"#))) }
+        let overlong = String(repeating: "a", count: 65)
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", #""files": ["\#(overlong)"], "patterns": ["x"]"#))) }
+        let most = (1...Rulebook.maxFileNames).map { #""f\#($0).js""# }.joined(separator: ",")
+        #expect(throws: Never.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", #""files": [\#(most)], "patterns": ["x"]"#))) }
+    }
+
     @Test func signedRulesAreValidForAYearAndWarnInTheLast30Days() throws {
         let data = Data(#"{"schema": 1, "version": 1, "issued": "2026-10-01T00:00:00Z", "expires": "2027-10-01T00:00:00Z", "rules": []}"#.utf8)
         let rulebook = try Rulebook.decode(from: data)

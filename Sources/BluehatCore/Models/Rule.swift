@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -58,6 +58,8 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let product: SoftwareProduct?
     public let advisory: String?
     public let ranges: [VersionRange]?
+    public let packages: [MaliciousPackage]?
+    public let files: [String]?
     public let summary: String?
     public let remedy: String?
     public let references: [String]?
@@ -73,6 +75,8 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
     static let maxEntriesPerRule = 200
     static let maxPatternLength = 256
     static let maxPathLength = 1024
+    static let maxFileNames = 20
+    static let fileNamePattern = #"^(?=.*[A-Za-z0-9])[A-Za-z0-9._*-]{1,64}$"#
     static let maxExplanationLength = 600
     static let maxReferences = 5
     static let maxReferenceLength = 300
@@ -166,7 +170,20 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             return rule.patterns == nil ? nil : problem(inPatterns: rule.patterns)
         case .softwareVersion:
             return problem(inSoftwareVersion: rule)
+        case .npmPackage:
+            guard let packages = rule.packages, !packages.isEmpty, packages.count <= maxEntriesPerRule else { return "packages must list 1-\(maxEntriesPerRule) packages" }
+            return packages.lazy.compactMap(problem(inPackage:)).first
+        case .projectFile:
+            return problem(inFileNames: rule.files) ?? problem(inPatterns: rule.patterns)
         }
+    }
+
+    static func problem(inPackage package: MaliciousPackage) -> String? {
+        guard NpmPackage.isName(package.name) else { return "package name must be an npm name such as chalk or @scope/name" }
+        guard package.advisory.range(of: advisoryPattern, options: .regularExpression) != nil else { return "advisory must be an id such as MAL-2025-46969" }
+        guard case .only(let versions) = package.versions else { return nil }
+        guard !versions.isEmpty, versions.count <= NpmPackage.maxVersionsPerPackage else { return "versions must be \"*\" or list 1-\(NpmPackage.maxVersionsPerPackage) versions" }
+        return versions.allSatisfy(NpmPackage.isVersion) ? nil : "versions must be semver versions such as 1.2.3"
     }
 
     static func problem(inSoftwareVersion rule: Rule) -> String? {
@@ -207,6 +224,14 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
             if !isRooted || hasParentStep || path.contains("\0") || path.count > maxPathLength {
                 return "path \(path) must start with / or ~/ and contain no .."
             }
+        }
+        return nil
+    }
+
+    static func problem(inFileNames names: [String]?) -> String? {
+        guard let names, !names.isEmpty, names.count <= maxFileNames else { return "files must list 1-\(maxFileNames) file names" }
+        for name in names where name.contains("..") || name.range(of: fileNamePattern, options: .regularExpression) == nil {
+            return "file \(name) must be a file name of letters, digits, ., -, _ and * only"
         }
         return nil
     }
