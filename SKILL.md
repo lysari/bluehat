@@ -18,7 +18,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 
 1. Edit `rules/rules.json` (format in `rules/README.md`) and raise `version`. Give each rule a `summary` and `remedy` for the detail view.
 2. Run `devbox run test` to check every rule still validates.
-3. Run `devbox run sign-rules`. It refuses to sign invalid rules, stamps the signed `issued` time, and writes `rules/rules.signed.json`.
+3. Run `devbox run sign-rules` (macOS asks you to approve access to the signing key in the Keychain). It refuses to sign invalid rules, stamps the signed `issued` time, and writes `rules/rules.signed.json`.
 4. In `rules/` (a git submodule of `lysari/bluehat-rules`), commit both files and `git push`. The app picks them up on the next scan. Then commit the updated `rules` pointer in the app repo, so its tests run against the same rules.
 5. Re-sign and push the hand-written rules at least once a year, even without changes. Signed rules expire 365 days after signing; the app warns in the last 30 days and refuses expired rules.
 6. Malware fingerprints need no manual step: the rules repository's scheduled job pulls MalwareBazaar daily and signs `feed.signed.json` with the CI feed key (valid 7 days). If the job stops, the app keeps using its cached feed until it expires, then scans with the rules alone and says so in the panel. The app also accepts a feed signed with a personal key, for an emergency (`bluehat-sign` signs only rules today).

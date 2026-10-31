@@ -59,7 +59,7 @@ func keygen() {
     }
     let key = Curve25519.Signing.PrivateKey()
     let secret = key.rawRepresentation.base64EncodedString()
-    let result = runSecurity(["add-generic-password", "-s", keychainService, "-a", keychainAccount, "-w"], input: "\(secret)\n\(secret)\n")
+    let result = runSecurity(["add-generic-password", "-s", keychainService, "-a", keychainAccount, "-T", "", "-w"], input: "\(secret)\n\(secret)\n")
     guard result.status == 0, storedKey()?.rawRepresentation == key.rawRepresentation else { fail("Could not save the signing key to Keychain.") }
     print("Created signing key in Keychain (service \(keychainService)).")
     describe(key)
