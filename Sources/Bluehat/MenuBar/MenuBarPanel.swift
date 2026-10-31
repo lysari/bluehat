@@ -30,7 +30,8 @@ final class MenuBarPanel: NSPanel {
             .fixedSize()
             .onGeometryChange(for: CGSize.self, of: \.size) { [weak self] size in
                 self?.place(size: size)
-            })
+            }
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading))
         hostingView.sizingOptions = []
         hostingView.autoresizingMask = [.width, .height]
         background.addSubview(hostingView)

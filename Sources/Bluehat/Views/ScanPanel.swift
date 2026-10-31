@@ -7,15 +7,30 @@ struct ScanPanel: View {
     @State private var selectedFindingID: Finding.ID?
     @Environment(\.openURL) private var openURL
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var selectedFinding: Finding? {
         store.visibleFindings.first { $0.id == selectedFindingID }
     }
 
+    private var hasFindings: Bool {
+        !store.visibleFindings.isEmpty
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: Metrics.spaceSection) {
+        HStack(alignment: .top, spacing: 0) {
             overview
-            findingsColumn
+            ZStack(alignment: .topLeading) {
+                if hasFindings {
+                    findingsColumn
+                        .padding(.leading, Metrics.spaceSection)
+                        .transition(.opacity)
+                }
+            }
+            .animation(Motion.standard, value: hasFindings)
+            .frame(maxHeight: .infinity, alignment: .topLeading)
+            .modifier(ColumnReveal(width: hasFindings ? Metrics.spaceSection + Metrics.findingsColumnWidth : 0))
+            .animation(reduceMotion ? nil : Motion.standard, value: hasFindings)
         }
         .padding(Metrics.panelPadding)
         .animation(Motion.standard, value: store.phase)
@@ -194,16 +209,10 @@ struct ScanPanel: View {
     private var findingsSection: some View {
         VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
             sectionTitle("Findings")
-            Group {
-                if store.visibleFindings.isEmpty {
-                    findingsPlaceholder
-                } else {
-                    ScrollView { findingRows }
-                        .padding(.horizontal, Metrics.cardPadding)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .card()
+            ScrollView { findingRows }
+                .padding(.horizontal, Metrics.cardPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .card()
         }
     }
 
@@ -216,36 +225,6 @@ struct ScanPanel: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private var findingsPlaceholder: some View {
-        switch store.phase {
-        case .finished:
-            placeholder(tint: Palette.safe, symbol: "checkmark", title: "No findings", subtitle: store.ignoredCount == 0 ? "Every check passed." : "\(counted(store.ignoredCount, "finding")) ignored. Undo in Settings › Ignored.")
-        case .loadingRules, .scanning:
-            placeholder(tint: Palette.idle, symbol: "magnifyingglass", title: "Nothing found yet", subtitle: "Findings appear here as each check finishes.")
-        case .idle:
-            placeholder(tint: Palette.idle, symbol: "magnifyingglass", title: "No findings yet", subtitle: "Scan your Mac to see findings here.")
-        }
-    }
-
-    private func placeholder(tint: Color, symbol: String, title: String, subtitle: String) -> some View {
-        VStack(spacing: Metrics.spaceLarge) {
-            ShieldEmblem(tint: tint, face: .symbol(symbol), size: Metrics.detailEmblem, isFloating: false)
-                .accessibilityHidden(true)
-            VStack(spacing: Metrics.spaceTight) {
-                Text(title)
-                    .font(Typography.rowTitle)
-                Text(subtitle)
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(Metrics.cardPadding)
-        .accessibilityElement(children: .combine)
     }
 
     private var checksSection: some View {
@@ -281,5 +260,16 @@ struct ScanPanel: View {
             .foregroundStyle(Palette.secondaryText)
             .padding(.leading, Metrics.spaceTight)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+@Animatable
+private struct ColumnReveal: ViewModifier {
+    var width: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .frame(width: max(width, 0), alignment: .leading)
+            .clipShape(Rectangle().inset(by: -Metrics.cardStrokeWidth))
     }
 }
