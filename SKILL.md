@@ -33,10 +33,19 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 | `devbox run bundle` | Build `.build/Bluehat.app` (release, menu bar only), signed with the first "Apple Development" identity in the Keychain so macOS keeps folder permissions across rebuilds; ad-hoc signed when there is none |
 | `devbox run start` | Bundle and open the app from `.build` |
 | `devbox run install` | Bundle, copy to `/Applications/Bluehat.app`, and open it |
+| `devbox run release` | Build a universal (Apple silicon and Intel) app, signed like `bundle`, into `.build/dist/Bluehat-<version>.dmg`, and print its SHA-256 |
 | `devbox run icon` | Regenerate `assets/AppIcon.icns` from `scripts/make-icon.swift` |
 | `devbox run keygen` | Create the signing key in the login Keychain, or print the existing public key |
 | `devbox run sign-rules` | Validate and sign `rules/rules.json` with the Keychain key, stamping `issued` and `expires` |
 | `devbox run -- swift run bluehat-sign backup-keygen <file>` | Create an offline backup signing key |
+
+## Make a release
+
+1. Raise `version` (and `build`) at the top of `scripts/bundle.sh`. It is the only place the version is set; the DMG name and the About tab read it from there.
+2. Run `devbox run release`. It builds an arm64 + x86_64 app, signs the app and the DMG with your Apple Development identity (ad-hoc and an unsigned DMG when there is none), checks both, and writes `.build/dist/Bluehat-<version>.dmg` with `Bluehat.app`, an `Applications` link to drag onto, and `How to open Bluehat.txt`. It never installs, opens or uploads anything.
+3. Upload the DMG yourself and publish the SHA-256 the command prints beside it.
+
+The app is not Developer ID signed or notarized, so recipients see "Apple could not verify" the first time. They drag Bluehat into Applications, double-click it, click Done, then open System Settings › Privacy & Security and click **Open Anyway** next to the Bluehat message, and confirm. They need macOS 26 or later. Rules update by themselves; app updates mean downloading the new DMG.
 
 ## Requirements
 

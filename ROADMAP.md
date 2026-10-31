@@ -72,8 +72,9 @@ Rule content:
 ## Phase 5: Distribution
 
 - [ ] Put the app in git, with its own repository
+- [x] `devbox run release`: universal DMG (app, Applications link, how-to-open note) signed with the Apple Development identity, with its SHA-256; recipients use Open Anyway on first launch
 - [ ] Developer ID signing and notarization, so other Macs open it without warnings
-- [ ] Signed app updates (Sparkle with EdDSA)
+- [ ] Signed app updates (Sparkle with EdDSA); updates are a manual DMG download today
 - [ ] DMG release built by CI
 
 ## Phase 6: Quality

@@ -2,14 +2,23 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-swift build -c release --product Bluehat
+version=1.0
+build=1
+
+case "${1:-}" in
+    "") arch_flags="" ;;
+    universal) arch_flags="--arch arm64 --arch x86_64" ;;
+    *) echo "usage: bundle.sh [universal]" >&2; exit 64 ;;
+esac
+swift build -c release --product Bluehat $arch_flags
+bin=$(swift build -c release $arch_flags --show-bin-path)
 
 app=.build/Bluehat.app
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp .build/release/Bluehat "$app/Contents/MacOS/Bluehat"
+cp "$bin/Bluehat" "$app/Contents/MacOS/Bluehat"
 cp assets/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
-cat > "$app/Contents/Info.plist" <<'PLIST'
+cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -25,9 +34,9 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$version</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$build</string>
     <key>LSMinimumSystemVersion</key>
     <string>26.0</string>
     <key>LSUIElement</key>
