@@ -27,6 +27,11 @@ extension CheckKind {
         }
     }
 
+    var inlineTitle: String {
+        guard let first = title.first, title.dropFirst().first?.isLowercase == true else { return title }
+        return first.lowercased() + title.dropFirst()
+    }
+
     var symbol: String {
         switch self {
         case .path: "ladybug"

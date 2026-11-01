@@ -1,6 +1,18 @@
 import BluehatCore
 
 extension ThreatCategory {
+    var title: String {
+        switch self {
+        case .malware: "Malware"
+        case .rce: "RCE"
+        case .worm: "Worm"
+        case .backdoor: "Backdoor"
+        case .persistence: "Persistence"
+        case .miner: "Miner"
+        case .hardening: "Hardening"
+        }
+    }
+
     var whyItMatters: String {
         switch self {
         case .malware: "Files or settings left by known malicious software. Malware can steal passwords, browser data and crypto wallets, or download more malware."

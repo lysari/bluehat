@@ -39,7 +39,7 @@ struct FindingRow: View {
                         .font(Typography.captionEmphasis)
                         .foregroundStyle(tint)
                     Text("·")
-                    Text(finding.rule.category.rawValue.capitalized)
+                    Text(finding.rule.category.title)
                         .font(Typography.caption)
                 }
                 .foregroundStyle(Palette.tertiaryText)
