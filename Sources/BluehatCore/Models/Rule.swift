@@ -67,6 +67,10 @@ public struct Rule: Codable, Sendable, Identifiable {
     public let summary: String?
     public let remedy: String?
     public let references: [String]?
+
+    var isFromMalwareFeed: Bool {
+        id.hasPrefix(MalwareFeed.ruleIDPrefix)
+    }
 }
 
 public struct Rulebook: Codable, Sendable, SignedPayload {

@@ -74,7 +74,7 @@ public struct Scanner: Sendable {
                 projects = walk.directories
                 notices += [walk.notice].compactMap { $0 }
             }
-            let areaFindings = Self.findings(in: area, rules: rules, projects: projects ?? [], notices: &notices)
+            let areaFindings = Self.withoutFeedFileDuplicates(Self.findings(in: area, rules: rules, projects: projects ?? [], notices: &notices), reported: findings)
             findings += areaFindings
             onAreaFinished(area, areaFindings)
         }
@@ -394,14 +394,29 @@ public struct Scanner: Sendable {
     }
 
     static func packageFindings(_ rules: [Rule], packages: [InstalledPackage]) -> [Finding] {
-        rules.flatMap { rule in
+        let matches = rules.map { rule in
             let listed = Dictionary(grouping: rule.packages ?? [], by: \.name)
-            return packages.compactMap { installed in
-                listed[installed.name]?.first { $0.versions.contains(installed.version) }.map { entry in
-                    let location = NSString(string: installed.path).abbreviatingWithTildeInPath
-                    return Finding(rule: rule, detail: "\(entry.advisory): \(installed.name) \(installed.version) · \(location)", path: installed.path)
-                }
+            return (rule: rule, hits: packages.compactMap { installed in
+                listed[installed.name]?.first { $0.versions.contains(installed.version) }.map { (package: installed, advisory: $0.advisory) }
+            })
+        }
+        let handWritten = Set(matches.filter { !$0.rule.isFromMalwareFeed }.flatMap { $0.hits.map(\.package) })
+        return matches.flatMap { rule, hits in
+            hits.filter { !rule.isFromMalwareFeed || !handWritten.contains($0.package) }.map { hit in
+                let location = NSString(string: hit.package.path).abbreviatingWithTildeInPath
+                return Finding(rule: rule, detail: "\(hit.advisory): \(hit.package.name) \(hit.package.version) · \(location)", path: hit.package.path)
             }
+        }
+    }
+
+    static func withoutFeedFileDuplicates(_ areaFindings: [Finding], reported: [Finding]) -> [Finding] {
+        let isFeedFile = { (finding: Finding) in finding.rule.isFromMalwareFeed && finding.rule.check == .fileHash }
+        guard areaFindings.contains(where: isFeedFile) else { return areaFindings }
+        let resolved = { (path: String) in URL(fileURLWithPath: path).resolvingSymlinksInPath().path }
+        let handWritten = Set((reported + areaFindings).filter { !$0.rule.isFromMalwareFeed }.compactMap(\.path).map(resolved))
+        return areaFindings.filter { finding in
+            guard isFeedFile(finding), let path = finding.path else { return true }
+            return !handWritten.contains(resolved(path))
         }
     }
 

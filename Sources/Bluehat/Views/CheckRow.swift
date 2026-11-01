@@ -16,7 +16,7 @@ struct CheckRow: View {
             Text(kind.title)
                 .font(Typography.body)
                 .lineLimit(1)
-            Spacer(minLength: Metrics.spaceSmall)
+                .frame(maxWidth: .infinity, alignment: .leading)
             status
         }
         .accessibilityElement(children: .combine)

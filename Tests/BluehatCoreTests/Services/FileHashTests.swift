@@ -77,6 +77,32 @@ struct FileHashTests {
         #expect(hashed.notice == "Fingerprint check covered only the 1 newest files per folder and skipped 1 in \(root.path).")
     }
 
+    func rule(_ id: String, check: CheckKind) -> Rule {
+        Rule(id: id, title: id, severity: .critical, category: .malware, check: check, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: nil, files: nil, teams: nil, bundles: nil, minimumVersion: nil, hosts: nil, summary: nil, remedy: nil, references: nil)
+    }
+
+    @Test func feedFileFindingIsDroppedWhenAHandWrittenRuleReportedTheSameFile() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("abc", to: "real/agent.sh")
+        try write("abc", to: "other.bin")
+        try FileManager.default.createSymbolicLink(atPath: root.appending(path: "link").path, withDestinationPath: root.appending(path: "real").path)
+        let linked = root.appending(path: "link/agent.sh").path
+        let real = root.appending(path: "real/agent.sh").path
+        let other = root.appending(path: "other.bin").path
+        let pathFinding = Finding(rule: rule("malware.silver-sparrow", check: .path), detail: linked, path: linked)
+        let hashFindings = [
+            Finding(rule: rule("hash.test", check: .fileHash), detail: real, path: real),
+            Finding(rule: rule("feed.amos", check: .fileHash), detail: real, path: real),
+            Finding(rule: rule("feed.amos", check: .fileHash), detail: other, path: other),
+        ]
+
+        let kept = Scanner.withoutFeedFileDuplicates(hashFindings, reported: [pathFinding])
+
+        #expect(kept.map { "\($0.rule.id) \(URL(fileURLWithPath: $0.detail).lastPathComponent)" } == ["hash.test agent.sh", "feed.amos other.bin"])
+        #expect(Scanner.withoutFeedFileDuplicates(hashFindings, reported: []).map(\.fingerprint) == kept.map(\.fingerprint))
+        #expect(Scanner.withoutFeedFileDuplicates(Array(hashFindings.dropFirst()), reported: []).count == 2)
+    }
+
     @Test func reportsNothingWithinLimits() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         try write("abc", to: "newest.txt")

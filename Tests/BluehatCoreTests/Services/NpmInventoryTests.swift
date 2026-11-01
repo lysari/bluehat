@@ -353,6 +353,38 @@ struct NpmInventoryTests {
         #expect(Set(findings.map(\.fingerprint)).count == findings.count)
     }
 
+    @Test func feedRuleSkipsPackageVersionsAHandWrittenRuleReports() throws {
+        let lockfile = "\(NSHomeDirectory())/Developer/interview-task/package-lock.json"
+        let installed = [
+            ("chalk", "5.6.1", lockfile),
+            ("chalk", "5.6.1", "/opt/homebrew/lib/node_modules/chalk"),
+            ("debug", "4.4.2", lockfile),
+        ].compactMap { InstalledPackage(name: $0.0, version: $0.1, path: $0.2) }
+        let feed = rule("feed.npm.unknown", [
+            MaliciousPackage(name: "chalk", versions: .only(["5.6.1"]), advisory: "MAL-2025-46969"),
+            MaliciousPackage(name: "debug", versions: .only(["4.4.2"]), advisory: "MAL-2025-46974"),
+        ])
+        let handWritten = rule("npm.qix-compromise-2025-09", [MaliciousPackage(name: "chalk", versions: .only(["5.6.1"]), advisory: "GHSA-test")])
+
+        let findings = Scanner.packageFindings([handWritten, feed], packages: installed)
+
+        #expect(findings.map { "\($0.rule.id) \($0.detail)" } == [
+            "npm.qix-compromise-2025-09 GHSA-test: chalk 5.6.1 · ~/Developer/interview-task/package-lock.json",
+            "npm.qix-compromise-2025-09 GHSA-test: chalk 5.6.1 · /opt/homebrew/lib/node_modules/chalk",
+            "feed.npm.unknown MAL-2025-46974: debug 4.4.2 · ~/Developer/interview-task/package-lock.json",
+        ])
+        #expect(Scanner.packageFindings([feed, handWritten], packages: installed).map(\.fingerprint).sorted() == findings.map(\.fingerprint).sorted())
+    }
+
+    @Test func handWrittenRulesEachReportTheSamePackageVersion() throws {
+        let installed = try #require(InstalledPackage(name: "chalk", version: "5.6.1", path: "/p"))
+        let chalk = MaliciousPackage(name: "chalk", versions: .only(["5.6.1"]), advisory: "MAL-2025-46969")
+
+        let findings = Scanner.packageFindings([rule("npm.first", [chalk]), rule("npm.second", [chalk])], packages: [installed])
+
+        #expect(findings.map(\.rule.id) == ["npm.first", "npm.second"])
+    }
+
     @Test func noListedPackagesGiveNoFindings() throws {
         let installed = try #require(InstalledPackage(name: "chalk", version: "5.6.1", path: "/p"))
         #expect(Scanner.packageFindings([], packages: [installed]).isEmpty)
