@@ -2,8 +2,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-version=1.1
-build=1
+version=1.2
+build=2
 
 case "${1:-}" in
     "") arch_flags="" ;;
