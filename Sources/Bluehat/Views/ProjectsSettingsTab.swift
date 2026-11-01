@@ -35,6 +35,7 @@ struct ProjectsSettingsTab: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }
+            .overlayScrollers()
             Section {
                 Button("Add Folder…", action: chooseFolders)
             }

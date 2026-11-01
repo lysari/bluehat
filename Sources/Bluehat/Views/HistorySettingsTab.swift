@@ -19,6 +19,7 @@ struct HistorySettingsTab: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }
+            .overlayScrollers()
         }
         .formStyle(.grouped)
     }

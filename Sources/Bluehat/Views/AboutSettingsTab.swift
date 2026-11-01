@@ -22,6 +22,7 @@ struct AboutSettingsTab: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            .overlayScrollers()
             Section("Rules") {
                 LabeledContent("Source") {
                     Link(String(RuleFeed.repositoryURL.path().dropFirst()), destination: RuleFeed.repositoryURL)

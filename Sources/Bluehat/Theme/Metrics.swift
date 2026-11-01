@@ -9,6 +9,7 @@ enum Metrics {
     static let cardPadding: CGFloat = 14
     static let cardMinimumRadius: CGFloat = 12
     static let cardStrokeWidth: CGFloat = 0.5
+    static let scrollIndicatorInset: CGFloat = 6
     static let spaceTight: CGFloat = 2
     static let spaceSmall: CGFloat = 6
     static let spaceMedium: CGFloat = 10

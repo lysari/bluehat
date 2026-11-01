@@ -46,6 +46,7 @@ struct ScanPanel: View {
                         store.settings.ignore(selectedFinding)
                         selectedFindingID = nil
                     }
+                    .overlayScrollers()
                 }
                 .scrollClipDisabled()
                 .id(selectedFinding.id)
@@ -184,7 +185,7 @@ struct ScanPanel: View {
         switch store.phase {
         case .idle: return "Checks for remote code execution, malware, worms, backdoors and weak settings."
         case .loadingRules: return "Downloading rules and checking their signature."
-        case .scanning: return "Checking \(store.currentArea?.title.lowercased() ?? "results")…"
+        case .scanning: return "Checking \(store.currentArea?.inlineTitle ?? "results")…"
         case .finished:
             let time = store.lastScanAt?.formatted(date: .omitted, time: .shortened) ?? ""
             let duration = store.scanDuration?.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow, maximumUnitCount: 1)) ?? ""
@@ -209,10 +210,14 @@ struct ScanPanel: View {
     private var findingsSection: some View {
         VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
             sectionTitle("Findings")
-            ScrollView { findingRows }
-                .padding(.horizontal, Metrics.cardPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .card()
+            ScrollView {
+                findingRows
+                    .padding(.horizontal, Metrics.cardPadding)
+                    .overlayScrollers()
+            }
+            .contentMargins(.vertical, Metrics.scrollIndicatorInset, for: .scrollIndicators)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .card()
         }
     }
 

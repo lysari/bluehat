@@ -34,6 +34,7 @@ struct IgnoredSettingsTab: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
             }
+            .overlayScrollers()
         }
         .formStyle(.grouped)
     }

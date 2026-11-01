@@ -18,7 +18,7 @@ Sources/
 │   ├── MenuBar/                 # AppKit glue: MenuBarController (status item, panel level), MenuBarPanel (floating NSPanel hosting ScanPanel)
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
 │   ├── Stores/                  # @Observable state: ScanStore, SettingsStore
-│   ├── Utilities/               # shared view helpers with doc comments: card(), counted()
+│   ├── Utilities/               # shared view helpers with doc comments: card(), counted(), overlayScrollers()
 │   └── Theme/                   # design tokens: Palette, Metrics, Typography, Motion
 └── bluehat-sign/                # CLI that validates and signs rules.json
 Tests/BluehatCoreTests/          # mirrors Sources/BluehatCore paths
