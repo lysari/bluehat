@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/hero.png" width="760" alt="Bluehat panel after a scan: the scan ring with 7 issues, the 20 check areas, and a findings list with a shell startup line, a vulnerable Python, a hijacked chalk release and code hidden in tailwind.config.js">
+  <img src="assets/readme/hero.png" width="760" alt="Bluehat panel after a scan: the scan ring with 6 issues, the 20 check areas, and a findings list with a shell startup line, a vulnerable Python, a hijacked chalk release and code hidden in tailwind.config.js">
 </p>
 
 ---
@@ -84,7 +84,7 @@ run anything.
 
 | | |
 | --- | --- |
-| <img src="assets/readme/menubar.png" width="50" alt="Menu bar shield with 7 issues"> | **Menu bar count**: the shield shows scan progress, then the number of open issues. |
+| <img src="assets/readme/menubar.png" width="50" alt="Menu bar shield with 6 issues"> | **Menu bar count**: the shield shows scan progress, then the number of open issues. |
 | 🪟 **Floating panel** | One click on the shield opens the scan panel, which stays above other windows until you click again. |
 | 🔍 **Finding details** | What was found, why it matters, how to fix it, and source links for every finding. |
 | ✅ **Signed rules, daily feed** | Hand-written rules and a daily malware fingerprint feed, both verified with Ed25519 before use. |
