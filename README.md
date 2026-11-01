@@ -78,7 +78,7 @@ run anything.
 | 🕵️ **Project files** | Code hidden in `tailwind.config.js`, `next.config.js` and other config files, and install scripts that download and run code, as fake interview repositories do. |
 | 🧱 **System extensions** | System extensions (VPNs, network filters, endpoint security, drivers) and loaded third-party kernel extensions that aren't from a short list of well-known vendors. |
 | 🦠 **XProtect** | Apple's built-in malware definitions, when they are older than the version the rules expect. |
-| 📡 **Connections** | Open TCP and UDP connections from any process to the command-and-control servers of current macOS malware, from a daily ThreatFox feed, with the process name. |
+| 📡 **Connections** | Open TCP and UDP connections from any process to the command-and-control servers of current macOS malware and of attack frameworks such as Cobalt Strike and Sliver, from a daily ThreatFox feed, with the process name. |
 
 ### The app
 
@@ -272,9 +272,10 @@ Bluehat downloads two signed files:
   files, plus generated rules for CVEs in developer tools. The owner signs it on
   their Mac, and it expires a year after signing.
 - **The daily feed** (`feed.signed.json`): SHA-256 hashes of recent macOS malware
-  from [MalwareBazaar](https://bazaar.abuse.ch/), malicious npm package versions
+  from [MalwareBazaar](https://bazaar.abuse.ch/) and ThreatFox, malicious npm package versions
   from [OSV.dev](https://osv.dev/list?ecosystem=npm), and the IP addresses and
-  ports of macOS malware command-and-control servers from
+  ports of command-and-control servers of macOS malware and of attack frameworks
+  such as Cobalt Strike and Sliver from
   [ThreatFox](https://threatfox.abuse.ch/). A scheduled job in the rules
   repository builds and signs it every day, and it expires after 7 days. If it's
   missing, the scan runs with the rulebook alone.
