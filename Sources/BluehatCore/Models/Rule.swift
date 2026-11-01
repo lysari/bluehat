@@ -130,6 +130,10 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
         Rulebook(schema: schema, version: version, rules: rules + extraRules, issued: issued, expires: expires, unsupportedRuleCount: unsupportedRuleCount)
     }
 
+    public var areas: [CheckKind] {
+        CheckKind.allCases.filter { area in rules.contains { $0.check == area } }
+    }
+
     func validate() throws {
         guard schema == Self.supportedSchema else { throw RulebookError.unsupportedSchema(schema) }
         guard version > 0 else { throw RulebookError.invalidVersion }

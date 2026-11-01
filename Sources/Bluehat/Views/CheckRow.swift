@@ -4,6 +4,7 @@ import SwiftUI
 struct CheckRow: View {
     let kind: CheckKind
     let findings: [Finding]
+    let hasRules: Bool
     let isChecked: Bool
 
     var body: some View {
@@ -23,7 +24,12 @@ struct CheckRow: View {
 
     @ViewBuilder
     private var status: some View {
-        if !isChecked {
+        if !hasRules {
+            Image(systemName: "minus.circle")
+                .foregroundStyle(Palette.emptyArea)
+                .accessibilityLabel("Nothing to check yet")
+                .help("Nothing to check yet")
+        } else if !isChecked {
             Circle()
                 .fill(Palette.tertiaryText)
                 .frame(width: Metrics.severityDot, height: Metrics.severityDot)

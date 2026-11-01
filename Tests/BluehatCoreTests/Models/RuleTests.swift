@@ -24,6 +24,13 @@ struct RuleTests {
         #expect(rulebook.unsupportedRuleCount == 1)
     }
 
+    @Test func listsOnlyAreasWithRulesInCheckOrder() throws {
+        let data = rulebookJSON(rule(check: "setting", #""setting": "sip""#) + "," + rule(check: "path", #""paths": ["~/Library/evil"]"#, id: "path.rule"))
+        let rulebook = try Rulebook.decode(from: data)
+        #expect(rulebook.areas == [.path, .setting])
+        #expect(!rulebook.areas.contains(.outbound))
+    }
+
     @Test func rejectsMalformedKnownCheckType() {
         let data = rulebookJSON(rule(check: "setting", #""setting": "notASetting""#))
         #expect(throws: RulebookError.malformed) { try Rulebook.decode(from: data) }

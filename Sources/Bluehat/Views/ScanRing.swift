@@ -24,7 +24,7 @@ struct ScanRing: View {
                     .padding(Metrics.ringSweepInset)
                     .rotationEffect(.degrees(seconds * Motion.sweepDegreesPerSecond))
                     .opacity(store.isBusy && !reduceMotion ? 1 : 0)
-                ForEach(Array(store.areas.enumerated()), id: \.element) { index, area in
+                ForEach(Array(CheckKind.allCases.enumerated()), id: \.element) { index, area in
                     Circle()
                         .trim(from: segmentStart(index), to: segmentStart(index + 1) - Metrics.ringSegmentGap)
                         .stroke(segmentColor(area), style: StrokeStyle(lineWidth: Metrics.ringLineWidth, lineCap: .round))
@@ -46,11 +46,12 @@ struct ScanRing: View {
     }
 
     private func segmentStart(_ index: Int) -> CGFloat {
-        CGFloat(index) / CGFloat(max(store.areas.count, 1)) + Metrics.ringSegmentGap / 2
+        CGFloat(index) / CGFloat(CheckKind.allCases.count) + Metrics.ringSegmentGap / 2
     }
 
     private func segmentColor(_ area: CheckKind) -> Color {
         if area == store.currentArea { return Palette.brand }
+        guard store.areas.contains(area) else { return Palette.emptyArea }
         guard store.finishedAreas.contains(area) else { return Palette.ringTrack }
         let worst = store.visibleFindings.filter { $0.rule.check == area }.map(\.rule.severity).max()
         return worst.map(Palette.severity) ?? Palette.safe

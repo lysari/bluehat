@@ -67,9 +67,8 @@ public struct Scanner: Sendable {
         var findings: [Finding] = []
         var notices: [String] = []
         var projects: [(path: String, files: Set<String>)]?
-        for area in CheckKind.allCases {
+        for area in rulebook.areas {
             let rules = rulebook.rules.filter { $0.check == area }
-            guard !rules.isEmpty else { continue }
             if projects == nil, [.npmPackage, .projectFile].contains(area) {
                 let walk = ProjectFolders.directories(in: projectFolders, containing: NpmInventory.projectFileNames)
                 projects = walk.directories

@@ -231,8 +231,8 @@ struct ScanPanel: View {
         VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
             sectionTitle("What Bluehat checks")
             LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: Metrics.spaceMedium) {
-                ForEach(store.areas, id: \.self) { area in
-                    CheckRow(kind: area, findings: store.visibleFindings.filter { $0.rule.check == area }, isChecked: store.finishedAreas.contains(area))
+                ForEach(CheckKind.allCases, id: \.self) { area in
+                    CheckRow(kind: area, findings: store.visibleFindings.filter { $0.rule.check == area }, hasRules: store.areas.contains(area), isChecked: store.finishedAreas.contains(area))
                 }
             }
             .padding(Metrics.cardPadding)

@@ -40,16 +40,18 @@ struct ScannerTests {
         try Data().write(to: present)
         defer { try? FileManager.default.removeItem(at: present) }
         let reported = Mutex<[(CheckKind, Int)]>([])
-
-        _ = Scanner().scan(rulebook([
+        let scanned = rulebook([
             rule("process.test", .process, patterns: ["^bluehat-never-matches$"]),
             rule("path.test", .path, paths: [present.path]),
-        ])) { area, findings in
+        ])
+
+        _ = Scanner().scan(scanned) { area, findings in
             reported.withLock { $0.append((area, findings.count)) }
         }
 
         let areas = reported.withLock { $0 }
         #expect(areas.map(\.0) == [.path, .process])
+        #expect(areas.map(\.0) == scanned.areas)
         #expect(areas.map(\.1) == [1, 0])
     }
 

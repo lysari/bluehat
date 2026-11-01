@@ -68,8 +68,7 @@ final class ScanStore {
     }
 
     var areas: [CheckKind] {
-        guard let rulebook else { return CheckKind.allCases }
-        return CheckKind.allCases.filter { area in rulebook.rules.contains { $0.check == area } }
+        rulebook?.areas ?? CheckKind.allCases
     }
 
     var currentArea: CheckKind? {

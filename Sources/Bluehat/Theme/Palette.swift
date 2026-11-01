@@ -17,6 +17,7 @@ enum Palette {
     static let cardStroke = Color(nsColor: .separatorColor)
     static let tintFillOpacity = 0.16
     static let ringTrack = Color(nsColor: .quaternaryLabelColor)
+    static let emptyArea = Color(nsColor: .tertiaryLabelColor)
     static let ringGlowOpacity = 0.22
     static let sweepOpacity = 0.32
     static let heroWashOpacity = 0.10
