@@ -1,4 +1,4 @@
-Bluehat is a menu bar threat scanner for macOS. It checks for known malware, persistence, unsigned apps, risky browser extensions, vulnerable developer tools (node, php, python, openssl, git, ruby), malicious npm packages and code injected into JavaScript project config files. Rules are Ed25519-signed and update automatically from [lysari/bluehat-rules](https://github.com/lysari/bluehat-rules).
+Bluehat is a menu bar threat scanner for macOS. It checks for known malware, persistence, unsigned apps, risky browser extensions, vulnerable developer tools (node, php, python, openssl, git, ruby), malicious npm packages and code injected into JavaScript project config files. Rules are Ed25519-signed, ship inside the app, and update from [lysari/bluehat-rules](https://github.com/lysari/bluehat-rules) only when you check and accept in Settings › Rules.
 
 ## Changes
 
@@ -16,7 +16,7 @@ Bluehat is a menu bar threat scanner for macOS. It checks for known malware, per
 3. Go to **System Settings › Privacy & Security** and click **Open Anyway**, then confirm.
 4. Look for the shield in the menu bar.
 
-App updates are manual for now: download the new DMG from Releases. Rules update by themselves.
+To update the app, click **Check for Updates** in Settings › About. Bluehat installs an update only if it's signed by the update key built into the app; versions without that key need the new DMG from Releases. Rules update from Settings › Rules, after you review the changes.
 
 ## Verify your download
 

@@ -1,11 +1,11 @@
 # Bluehat Roadmap
 
-Updated 2026-11-01. Each phase ships as a working app; later phases depend on the earlier ones being done.
+Updated 2026-11-02. Each phase ships as a working app; later phases depend on the earlier ones being done.
 
 ## Phase 0: Foundation (done)
 
 - [x] Menu bar app with a Scan button (`NSStatusItem` with a floating SwiftUI panel)
-- [x] Rules downloaded only from `lysari/bluehat-rules`, Ed25519-signed, verified against the built-in public key
+- [x] Rules come only from `lysari/bluehat-rules`, Ed25519-signed, verified against the built-in public key; since 2026-11-02 they ship inside the app and update only after review in Settings › Rules
 - [x] Data-only rules over 8 built-in check types; no redirects, 2 MB cap, rollback guard, verified offline cache
 - [x] `bluehat-sign` CLI with the private key in the login Keychain
 - [x] 22 starter rules, 20 tests, Devbox commands
@@ -79,7 +79,7 @@ Rule content:
 - [x] `devbox run release`: universal DMG (app, Applications link, how-to-open note) signed with the Apple Development identity, with its SHA-256; recipients use Open Anyway on first launch
 - [x] `devbox run publish`: GitHub Release from pushed `main` only, notes generated from `scripts/release-notes.md`, checksum verified after upload, with `--dry-run`
 - [ ] Developer ID signing and notarization, so other Macs open it without warnings
-- [ ] Signed app updates (Sparkle with EdDSA); updates are a manual DMG download today
+- [x] Signed app updates from Settings › About: user-started check, Ed25519 update key separate from the rules keys, atomic replace with rollback
 - [ ] DMG release built by CI
 
 ## Phase 6: Quality

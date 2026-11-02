@@ -2,8 +2,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-version=1.2
-build=2
+version=1.3
+build=3
 
 case "${1:-}" in
     "") arch_flags="" ;;
@@ -18,6 +18,7 @@ rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin/Bluehat" "$app/Contents/MacOS/Bluehat"
 cp assets/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+cp rules/rules.signed.json rules/feed.signed.json "$app/Contents/Resources/"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

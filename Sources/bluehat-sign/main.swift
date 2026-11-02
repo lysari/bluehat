@@ -3,8 +3,10 @@ import CryptoKit
 import Foundation
 
 let keychainService = "bluehat-rules-signing"
+let updateKeychainService = "bluehat-update-signing"
 let keychainAccount = "bluehat"
-let usage = "Usage: bluehat-sign keygen | bluehat-sign backup-keygen <key file> | bluehat-sign sign <rules.json> [--key-file <key file>]"
+let noUpdateKeyStatus: Int32 = 3
+let usage = "Usage: bluehat-sign keygen | bluehat-sign backup-keygen <key file> | bluehat-sign sign <rules.json> [--key-file <key file>] | bluehat-sign update-keygen | bluehat-sign sign-update <dmg> <version>"
 
 func runSecurity(_ arguments: [String], input: String? = nil) -> (status: Int32, output: String) {
     let process = Process()
@@ -25,8 +27,8 @@ func runSecurity(_ arguments: [String], input: String? = nil) -> (status: Int32,
     return (process.terminationStatus, String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
 }
 
-func storedKey() -> Curve25519.Signing.PrivateKey? {
-    let result = runSecurity(["find-generic-password", "-s", keychainService, "-a", keychainAccount, "-w"])
+func storedKey(service: String = keychainService) -> Curve25519.Signing.PrivateKey? {
+    let result = runSecurity(["find-generic-password", "-s", service, "-a", keychainAccount, "-w"])
     guard result.status == 0, let raw = Data(base64Encoded: result.output) else { return nil }
     return try? Curve25519.Signing.PrivateKey(rawRepresentation: raw)
 }
@@ -51,18 +53,59 @@ func describe(_ key: Curve25519.Signing.PrivateKey) {
     print(isTrusted ? "The app trusts this key." : "The app does not trust this key yet. Add the public key to RuleFeed.trustedKeys and rebuild.")
 }
 
+func createStoredKey(service: String) -> Curve25519.Signing.PrivateKey {
+    let key = Curve25519.Signing.PrivateKey()
+    let secret = key.rawRepresentation.base64EncodedString()
+    let result = runSecurity(["add-generic-password", "-s", service, "-a", keychainAccount, "-T", "", "-w"], input: "\(secret)\n\(secret)\n")
+    guard result.status == 0, storedKey(service: service)?.rawRepresentation == key.rawRepresentation else { fail("Could not save the signing key to Keychain.") }
+    print("Created signing key in Keychain (service \(service)).")
+    return key
+}
+
 func keygen() {
     if let key = storedKey() {
         print("Signing key already exists in Keychain (service \(keychainService)).")
         describe(key)
         return
     }
-    let key = Curve25519.Signing.PrivateKey()
-    let secret = key.rawRepresentation.base64EncodedString()
-    let result = runSecurity(["add-generic-password", "-s", keychainService, "-a", keychainAccount, "-T", "", "-w"], input: "\(secret)\n\(secret)\n")
-    guard result.status == 0, storedKey()?.rawRepresentation == key.rawRepresentation else { fail("Could not save the signing key to Keychain.") }
-    print("Created signing key in Keychain (service \(keychainService)).")
-    describe(key)
+    describe(createStoredKey(service: keychainService))
+}
+
+func describeUpdateKey(_ key: Curve25519.Signing.PrivateKey) {
+    print("Public key: \(key.publicKey.rawRepresentation.base64EncodedString())")
+    print("Fingerprint: \(RuleFeed.fingerprint(of: key.publicKey))")
+    let isTrusted = AppUpdater.trustedKeys.contains { $0.rawRepresentation == key.publicKey.rawRepresentation }
+    print(isTrusted ? "The app trusts this key for updates." : "The app does not trust this key yet. Add the public key to AppUpdater.trustedKeys and rebuild.")
+}
+
+func updateKeygen() {
+    if let key = storedKey(service: updateKeychainService) {
+        print("Update signing key already exists in Keychain (service \(updateKeychainService)).")
+        describeUpdateKey(key)
+        return
+    }
+    describeUpdateKey(createStoredKey(service: updateKeychainService))
+}
+
+func signUpdate(_ path: String, version: String) {
+    guard !AppUpdater.trustedKeys.isEmpty else {
+        FileHandle.standardError.write(Data("This build has no update key in AppUpdater.trustedKeys. Run: bluehat-sign update-keygen, then add its public key and rebuild.\n".utf8))
+        exit(noUpdateKeyStatus)
+    }
+    guard let key = storedKey(service: updateKeychainService) else { fail("No update signing key in Keychain. Run: bluehat-sign update-keygen") }
+    guard AppUpdater.trustedKeys.contains(where: { $0.rawRepresentation == key.publicKey.rawRepresentation }) else {
+        fail("Refusing to sign: the app does not trust update key \(RuleFeed.fingerprint(of: key.publicKey)), so installed apps would reject this update.")
+    }
+    let image = URL(fileURLWithPath: path)
+    let target = URL(fileURLWithPath: path + AppUpdater.signatureSuffix)
+    do throws(AppUpdateError) {
+        let signed = try AppUpdater.sign(imageAt: image, version: version, with: key)
+        try AppUpdater.standard.confirmSigned(signed, imageAt: image, version: version)
+        guard (try? signed.write(to: target, options: .atomic)) != nil else { fail("Cannot write \(target.path).") }
+    } catch {
+        fail("Refusing to sign \(path) as version \(version): \(error.localizedDescription)")
+    }
+    print("Signed update \(version) using key \(RuleFeed.fingerprint(of: key.publicKey)) -> \(target.path)")
 }
 
 func backupKeygen(_ path: String) {
@@ -137,6 +180,10 @@ case "sign" where arguments.count == 2:
     sign(arguments[1], keyFile: nil)
 case "sign" where arguments.count == 4 && arguments[2] == "--key-file":
     sign(arguments[1], keyFile: arguments[3])
+case "update-keygen" where arguments.count == 1:
+    updateKeygen()
+case "sign-update" where arguments.count == 3:
+    signUpdate(arguments[1], version: arguments[2])
 default:
     fail(usage)
 }

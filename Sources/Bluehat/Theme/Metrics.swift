@@ -24,6 +24,7 @@ enum Metrics {
     static let welcomePadding: CGFloat = 28
     static let settingsWidth: CGFloat = 500
     static let settingsMinHeight: CGFloat = 360
+    static let releaseNotesHeight: CGFloat = 120
     static let featureSymbolWidth: CGFloat = 28
     static let emblemDepthLayers = 7
     static let emblemDepthRatio: CGFloat = 0.1

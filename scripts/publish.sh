@@ -55,8 +55,12 @@ version=$(plutil -extract CFBundleShortVersionString raw -o - .build/Bluehat.app
 tag=v$version
 asset=Bluehat-$version.dmg
 dmg=.build/dist/$asset
+signature=$dmg.sig
 if [ ! -f "$dmg" ]; then
     fail "$dmg not found after the build"
+fi
+if [ ! -f "$signature" ]; then
+    fail "$signature not found; run devbox run update-keygen, add its public key to AppUpdater.trustedKeys, commit and push"
 fi
 if git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null; then
     fail "tag $tag already exists locally; raise version in scripts/bundle.sh, commit and push"
@@ -94,15 +98,15 @@ if [ -n "$dry_run" ]; then
     cat "$notes"
     echo
     echo "Dry run, nothing uploaded. Without --dry-run this runs:"
-    echo "gh release create $tag $dmg -R $repo --target $head --title \"Bluehat $version\" --notes-file <the notes above>"
+    echo "gh release create $tag $dmg $signature -R $repo --target $head --title \"Bluehat $version\" --notes-file <the notes above>"
     exit 0
 fi
 
-gh release create "$tag" "$dmg" -R "$repo" --target "$head" --title "Bluehat $version" --notes-file "$notes"
+gh release create "$tag" "$dmg" "$signature" -R "$repo" --target "$head" --title "Bluehat $version" --notes-file "$notes"
 
 download=$work/download
 mkdir "$download"
-gh release download "$tag" -R "$repo" -p "$asset" -D "$download"
+gh release download "$tag" -R "$repo" -p "$asset" -p "$asset.sig" -D "$download"
 published=$(shasum -a 256 "$download/$asset" | cut -d ' ' -f 1)
 if [ "$published" != "$sha256" ]; then
     cat >&2 <<ERROR
@@ -114,11 +118,22 @@ if [ "$published" != "$sha256" ]; then
 
 Do not share this release yet. The release is left in place. Upload the
 DMG the notes describe again, then download it into an empty folder and compare:
-  gh release upload $tag $dmg -R $repo --clobber
+  gh release upload $tag $dmg $signature -R $repo --clobber
   gh release download $tag -R $repo -p '$asset' -D <empty dir>
   shasum -a 256 <empty dir>/$asset
 If it still differs, delete the release on https://github.com/$repo/releases/tag/$tag
 and the tag (git push origin :refs/tags/$tag), then run devbox run publish again.
+ERROR
+    exit 1
+fi
+
+if ! cmp -s "$download/$asset.sig" "$signature"; then
+    cat >&2 <<ERROR
+
+!!! SIGNATURE MISMATCH: the published $asset.sig differs from $signature !!!
+
+Installed apps will refuse this update. The release is left in place. Upload it again:
+  gh release upload $tag $signature -R $repo --clobber
 ERROR
     exit 1
 fi

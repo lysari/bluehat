@@ -7,7 +7,7 @@ import UserNotifications
 @Observable
 final class ScanStore {
     enum Phase {
-        case idle, loadingRules, scanning, finished
+        case idle, scanning, finished
     }
 
     enum Trigger {
@@ -33,11 +33,13 @@ final class ScanStore {
     private static let scheduleCheckInterval = Duration.seconds(60)
 
     let settings: SettingsStore
+    let rulesReview = FeedReview<Rulebook>(feed: .rulebook)
+    let malwareFeedReview = FeedReview<MalwareFeed>(feed: .malwareFeed)
+    let appUpdate = AppUpdateReview()
     private(set) var phase = Phase.idle
     private(set) var findings: [Finding] = []
     private(set) var finishedAreas: Set<CheckKind> = []
     private(set) var rulebook: Rulebook?
-    private(set) var malwareFeed: MalwareFeed?
     private(set) var notice: String?
     private(set) var failure: String?
     private(set) var scanDuration: Duration?
@@ -64,7 +66,7 @@ final class ScanStore {
     }
 
     var isBusy: Bool {
-        phase == .loadingRules || phase == .scanning
+        phase == .scanning
     }
 
     var areas: [CheckKind] {
@@ -107,34 +109,36 @@ final class ScanStore {
         if failure != nil { return .failed }
         switch phase {
         case .idle: return .ready
-        case .loadingRules: return .scanning(progress: 0)
         case .scanning: return .scanning(progress: progress)
         case .finished: return issues.isEmpty ? .safe : .issues(count: issues.count)
         }
     }
 
-    func scan(trigger: Trigger = .manual) async {
+    func startAppUpdate() {
         guard !isBusy else { return }
-        phase = .loadingRules
+        appUpdate.startUpdate()
+    }
+
+    func scan(trigger: Trigger = .manual) async {
+        guard !isBusy, !appUpdate.isUpdating else { return }
+        phase = .scanning
         failure = nil
         notice = nil
+        finishedAreas = []
         do {
             async let loadedFeed = Self.loadMalwareFeed()
-            let loaded = try await RuleFeed.rulebook.load(Rulebook.self)
+            let loaded = try await Self.loadRules()
             let feedResult = await loadedFeed
-            malwareFeed = try? feedResult.get().payload
-            let rulebook = loaded.payload.appending(malwareFeed?.rules ?? [])
+            let rulebook = loaded.payload.appending((try? feedResult.get().payload.rules) ?? [])
             self.rulebook = rulebook
             let unsupported = loaded.payload.unsupportedRuleCount
             var messages = [
-                loaded.remoteError.map { "Using last verified rules. \($0.localizedDescription)" },
+                loaded.storedError.map { "The saved rules failed verification, so the rules built into Bluehat were used. \($0.localizedDescription)" },
                 Self.feedNotice(feedResult),
                 unsupported == 0 ? nil : unsupported == 1 ? "1 rule needs a newer version of Bluehat and was skipped." : "\(unsupported) rules need a newer version of Bluehat and were skipped.",
             ].compactMap { $0 }
             notice = messages.isEmpty ? nil : messages.joined(separator: " ")
             findings = []
-            finishedAreas = []
-            phase = .scanning
             let clock = ContinuousClock()
             let start = clock.now
             let projectFolders = settings.projectFolders
@@ -163,9 +167,13 @@ final class ScanStore {
         findings.removeAll { $0.rule.check == .softwareVersion && $0.path == installation.path }
     }
 
+    nonisolated private static func loadRules() async throws(RuleFeedError) -> LoadedFeed<Rulebook> {
+        try RuleFeed.rulebook.load(Rulebook.self)
+    }
+
     nonisolated private static func loadMalwareFeed() async -> Result<LoadedFeed<MalwareFeed>, RuleFeedError> {
         do {
-            return .success(try await RuleFeed.malwareFeed.load(MalwareFeed.self))
+            return .success(try RuleFeed.malwareFeed.load(MalwareFeed.self))
         } catch {
             return .failure(error)
         }
@@ -174,7 +182,7 @@ final class ScanStore {
     private static func feedNotice(_ result: Result<LoadedFeed<MalwareFeed>, RuleFeedError>) -> String? {
         switch result {
         case .success(let loaded):
-            loaded.remoteError.map { "Using last verified malware fingerprints. \($0.localizedDescription)" }
+            loaded.storedError.map { "The saved malware fingerprints failed verification, so the copy built into Bluehat was used. \($0.localizedDescription)" }
         case .failure(let error):
             "Malware fingerprints unavailable, scanning with the rules only. \(error.localizedDescription)"
         }

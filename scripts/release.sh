@@ -51,8 +51,10 @@ You only do this the first time.
 Bluehat is a menu bar app: it has no Dock icon or window. Look for the
 shield in the menu bar at the top of the screen and click it to scan.
 
-The detection rules update automatically. App updates are manual:
-download the new DMG and drag Bluehat into Applications again.
+The detection rules ship with the app. To update them, open Settings >
+Rules and click Check for Updates; nothing changes until you accept. To
+update the app, open Settings > About and click Check for Updates, or download
+the new DMG and drag Bluehat into Applications again.
 TXT
 
 hdiutil create -volname Bluehat -srcfolder "$staging" -format UDZO -ov "$dmg"
@@ -62,7 +64,18 @@ if [ -n "$authority" ]; then
 fi
 hdiutil verify "$dmg"
 
+signature=$dmg.sig
+rm -f "$signature"
+sign_status=0
+swift run bluehat-sign sign-update "$dmg" "$version" || sign_status=$?
+case $sign_status in
+    0) ;;
+    3) echo "release.sh: no update signature written; publish.sh refuses to publish without one" >&2 ;;
+    *) exit "$sign_status" ;;
+esac
+
 echo "App: $app ($archs)"
 echo "Signed by: ${authority:-ad-hoc (DMG left unsigned)}"
 echo "DMG: $dmg"
 echo "SHA-256: $(shasum -a 256 "$dmg" | cut -d ' ' -f 1)"
+echo "Update signature: $([ -f "$signature" ] && echo "$signature" || echo none)"

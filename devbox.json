@@ -16,6 +16,7 @@
       "publish": "sh scripts/publish.sh \"$@\"",
       "keygen": "swift run bluehat-sign keygen",
       "sign-rules": "swift run bluehat-sign sign rules/rules.json",
+      "update-keygen": "swift run bluehat-sign update-keygen",
       "icon": "swift scripts/make-icon.swift assets/AppIcon.icns"
     }
   }

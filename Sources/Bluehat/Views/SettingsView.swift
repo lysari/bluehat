@@ -15,6 +15,8 @@ struct SettingsView: View {
                 .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }
             IgnoredSettingsTab(settings: store.settings)
                 .tabItem { Label("Ignored", systemImage: "eye.slash") }
+            RulesSettingsTab(rules: store.rulesReview, malwareFeed: store.malwareFeedReview)
+                .tabItem { Label("Rules", systemImage: "checkmark.seal") }
             AboutSettingsTab(store: store)
                 .tabItem { Label("About", systemImage: "info.circle") }
         }

@@ -73,7 +73,7 @@ struct ScanPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if store.rulesExpireSoon, let expires = store.rulebook?.expires {
-                Label("Rules expire \(expires.formatted(.relative(presentation: .named))), on \(expires.formatted(date: .abbreviated, time: .omitted)). Sign and push new rules, or check that nothing is blocking updates.", systemImage: "clock.badge.exclamationmark")
+                Label("Rules expire \(expires.formatted(.relative(presentation: .named))), on \(expires.formatted(date: .abbreviated, time: .omitted)). Check for updates in Settings › Rules.", systemImage: "clock.badge.exclamationmark")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.notice)
                     .fixedSize(horizontal: false, vertical: true)
@@ -141,7 +141,7 @@ struct ScanPanel: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(store.isBusy)
+            .disabled(store.isBusy || store.appUpdate.isUpdating)
             .keyboardShortcut(.defaultAction)
         }
         .padding(Metrics.cardPadding)
@@ -153,7 +153,6 @@ struct ScanPanel: View {
         if store.failure != nil { return .symbol("xmark") }
         switch store.phase {
         case .idle: return .symbol("magnifyingglass")
-        case .loadingRules: return .symbol("key.fill")
         case .scanning: return .text("\(Int(store.progress * 100))%")
         case .finished: return store.issues.isEmpty ? .symbol("checkmark") : .text("\(store.issues.count)")
         }
@@ -162,7 +161,7 @@ struct ScanPanel: View {
     private var statusTint: Color {
         if store.failure != nil { return Palette.failure }
         switch store.phase {
-        case .idle, .loadingRules, .scanning: return Palette.idle
+        case .idle, .scanning: return Palette.idle
         case .finished: return store.issues.map(\.rule.severity).max().map(Palette.severity) ?? Palette.safe
         }
     }
@@ -171,7 +170,6 @@ struct ScanPanel: View {
         if store.failure != nil { return "Couldn't load rules" }
         switch store.phase {
         case .idle: return "Ready to scan"
-        case .loadingRules: return "Verifying signed rules…"
         case .scanning: return "Scanning your Mac…"
         case .finished:
             if store.issues.isEmpty { return "Your Mac looks safe" }
@@ -180,11 +178,11 @@ struct ScanPanel: View {
     }
 
     private var statusSubtitle: String {
+        if store.appUpdate.isUpdating { return "Scanning is unavailable while Bluehat updates." }
         if let failure = store.failure { return failure }
         let ruleCount = store.rulebook?.rules.count ?? 0
         switch store.phase {
         case .idle: return "Checks for remote code execution, malware, worms, backdoors and weak settings."
-        case .loadingRules: return "Downloading rules and checking their signature."
         case .scanning: return "Checking \(store.currentArea?.inlineTitle ?? "results")…"
         case .finished:
             let time = store.lastScanAt?.formatted(date: .omitted, time: .shortened) ?? ""
@@ -202,7 +200,7 @@ struct ScanPanel: View {
     private var buttonTitle: String {
         switch store.phase {
         case .idle: "Scan Now"
-        case .loadingRules, .scanning: "Scanning…"
+        case .scanning: "Scanning…"
         case .finished: "Scan Again"
         }
     }

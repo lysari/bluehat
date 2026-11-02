@@ -5,9 +5,17 @@ public struct SoftwareVersion: Sendable, Comparable, CustomStringConvertible {
     let letters: String
 
     init?(_ text: String, for product: SoftwareProduct) {
+        self.init(text, allowsLetters: product.hasLetterReleases)
+    }
+
+    public init?(appRelease text: String) {
+        self.init(text, allowsLetters: false)
+    }
+
+    private init?(_ text: String, allowsLetters: Bool) {
         guard
             let match = text.wholeMatch(of: /v?([0-9]{1,9}(?:\.[0-9]{1,9}){0,5})([a-z]{1,2})?/),
-            match.2 == nil || product.hasLetterReleases
+            match.2 == nil || allowsLetters
         else { return nil }
         numbers = match.1.split(separator: ".").compactMap { Int($0) }
         letters = match.2.map(String.init) ?? ""

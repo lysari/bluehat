@@ -64,7 +64,7 @@ run anything.
 | 🐚 **Shell startup** | Lines in `~/.zshrc`, `~/.bashrc` and other startup files that pipe a download into a shell, decode hidden code or inject a library. |
 | ⚙️ **Processes** | Command lines of running processes that match stealer, backdoor and miner behaviour. |
 | 🌐 **Open ports** | Listening TCP ports used by known backdoors and miners. |
-| ⬇️ **Downloads** | SHA-256 of files in Downloads, Desktop, `/Users/Shared` and `/private/tmp` against a daily feed of current macOS malware. |
+| ⬇️ **Downloads** | SHA-256 of files in Downloads, Desktop, `/Users/Shared` and `/private/tmp` against a feed of current macOS malware, rebuilt daily and updated when you accept it in Settings › Rules. |
 | ⏰ **Scheduled jobs** | Cron jobs that download or decode code and run it. |
 | 🛡️ **Protections** | System Integrity Protection, Gatekeeper and the firewall, when switched off. |
 | ✍️ **Launch signing** | Programs started by launch items that are unsigned, ad-hoc signed or tampered with. |
@@ -87,11 +87,12 @@ run anything.
 | <img src="assets/readme/menubar.png" width="50" alt="Menu bar shield with 6 issues"> | **Menu bar count**: the shield shows scan progress, then the number of open issues. |
 | 🪟 **Floating panel** | One click on the shield opens the scan panel, which stays above other windows until you click again. |
 | 🔍 **Finding details** | What was found, why it matters, how to fix it, and source links for every finding. |
-| ✅ **Signed rules, daily feed** | Hand-written rules and a daily malware fingerprint feed, both verified with Ed25519 before use. |
+| ✅ **Signed rules you review** | Hand-written rules and a malware fingerprint feed ship inside the app and are verified with Ed25519 every time they load. Settings › Rules checks for updates when you click, compares them with your local copy, and changes nothing until you accept. |
 | 🕒 **Scheduled scans** | Every 1, 6, 12 or 24 hours, with a notification only for issues that weren't there before. |
 | 🙈 **Ignore list** | Hide one exact finding; review and undo it in Settings › Ignored. |
 | 📜 **Scan history** | The last 30 scans, with what was new and what was resolved each time. |
 | 🚀 **Launch at login** | One switch in Settings › General. |
+| ⬆️ **App updates you start** | Settings › About checks GitHub when you click, shows the new version, its date and its notes, and installs only after you click and the download passes its signature check. |
 
 ## Showcase
 
@@ -112,10 +113,32 @@ folder, not from a real infection.
 
 ## Privacy and safety
 
-- **Two network requests, nothing else.** At the start of each scan Bluehat
-  downloads `rules.signed.json` and `feed.signed.json` from
-  `raw.githubusercontent.com/lysari/bluehat-rules/main/`. Redirects are refused,
-  no cookies or credentials are kept, and the files are capped at 2 MB and 4 MB.
+- **Rules come from the network only when you ask.** Scans, scheduled scans and
+  launch make no request for rules: they use the signed files on your Mac. Clicking
+  **Check for Updates** in Settings › Rules downloads `rules.signed.json` and
+  `feed.signed.json` from `raw.githubusercontent.com/lysari/bluehat-rules/main/`,
+  two requests per click. Redirects are refused, no cookies or credentials are
+  kept, and the files are capped at 2 MB and 4 MB.
+- **App updates come from the network only when you ask.** There is no timer, no
+  check at launch and no background download. **Check for Updates** in
+  Settings › About sends one request to `api.github.com` for the latest release of
+  `lysari/bluehat`. **Update and Relaunch** downloads that release's signature file
+  and DMG from `github.com`, which redirects to GitHub's download servers
+  (`release-assets.githubusercontent.com` or `objects.githubusercontent.com`).
+  Redirects to any other host or over plain HTTP are refused. No cookies, tokens or
+  scan data are sent; GitHub sees your IP address, as with any download.
+- **App updates are signed separately from rules.** The rules keys can only change
+  data, so app updates use their own Ed25519 update key, which runs code and is never
+  used for rules. Bluehat refuses to install unless a signature made with that key
+  covers this version and the exact DMG. The SHA-256 in the release notes isn't
+  enough, because anyone who could replace the DMG could replace the notes too. A
+  build with no update key offers a link to the Releases page instead.
+- **An update can't leave you without an app.** After the signature check, Bluehat
+  mounts the DMG without showing it in Finder and checks the bundle identifier, the
+  version and the code signature. It then swaps the new app in with one atomic
+  rename, and puts the old one back if the new one doesn't start. It updates only
+  from `/Applications` or `~/Applications`, and scans and updates never run together.
+  The release notes shown in Settings come from GitHub and aren't signed.
 - **Gatekeeper may ask Apple about an app.** The notarization check reads the
   ticket stapled to an app or already known to macOS, without the network. Only
   for a Developer ID app with neither does it run `spctl --assess`, and macOS's
@@ -129,13 +152,16 @@ folder, not from a real infection.
   built into the app. The daily feed is signed by a separate CI key that the app
   accepts only for the feed, never for rules. Signed files expire, and an older
   version never replaces a newer one, so a stale or replayed file is refused.
-  If the download fails, Bluehat uses its last verified copy.
+  A download must pass these checks before it is shown as an update, and nothing
+  is saved until you accept it. If the saved copy fails verification when it loads,
+  Bluehat says so and uses the copy built into the app.
 - **Rules are data.** A rule picks one of the 20 checks built into the app and
   gives it paths, patterns, hashes, versions or IP addresses. It can't add a command.
 - **Bluehat never runs what it finds.** It reads versions from folder names and
   headers and checks code signatures with the Security framework. The only
   programs it starts on its own are macOS tools such as `ps`, `lsof`, `netstat`,
-  `spctl` and `crontab -l`.
+  `spctl` and `crontab -l`. When you click **Update and Relaunch** it also runs
+  `hdiutil` and `ditto`, then opens the new version of itself.
 - **Connections are only listed.** The connection check reads the Mac's open
   connections with `netstat` and compares their remote IP addresses with the
   rules. It never connects to a listed address and never looks up a name.
@@ -166,8 +192,13 @@ To check your download, run `shasum -a 256` on the DMG and compare the result wi
 the SHA-256 in the release notes.
 
 > [!NOTE]
-> Rules update by themselves on every scan. App updates are manual for now:
-> download the new DMG from Releases.
+> Rules ship inside the app. To update them, click **Check for Updates** in
+> Settings › Rules, review what changed and accept. The malware fingerprint feed
+> expires 7 days after it was built, so check at least weekly: once it expires,
+> scans run with the rules alone and the panel says so. To update the app, click
+> **Check for Updates** in Settings › About, or download the new DMG from Releases.
+> Versions 1.0 to 1.2 don't have this button, so moving to the first version that
+> does means downloading the DMG once.
 
 ## Build from source
 
@@ -188,7 +219,8 @@ devbox run test     # unit tests, including every rule in rules/
 devbox run start    # build .build/Bluehat.app and open it
 ```
 
-The rules repository is a git submodule in `rules/`, and the tests read it. If you
+The rules repository is a git submodule in `rules/`. The tests read it and the app
+bundle copies its signed files, so the build needs it. If you
 cloned without `--recursive`, run `git submodule update --init`.
 
 ### Commands
@@ -201,9 +233,10 @@ cloned without `--recursive`, run `git submodule update --init`.
 | `devbox run start` | Bundles and opens the app from `.build` |
 | `devbox run install` | Bundles, quits a running Bluehat, copies the app to `/Applications` and opens it |
 | `devbox run icon` | Redraws `assets/AppIcon.icns` from `scripts/make-icon.swift` |
-| `devbox run release` | *Maintainer.* Builds a universal DMG in `.build/dist/` and prints its SHA-256 |
-| `devbox run publish` | *Maintainer.* Checks the repository, runs `release` and publishes a GitHub Release; add `-- --dry-run` to upload nothing |
+| `devbox run release` | *Maintainer.* Builds a universal DMG in `.build/dist/`, prints its SHA-256, and writes its update signature when the build has an update key |
+| `devbox run publish` | *Maintainer.* Checks the repository, runs `release` and publishes a GitHub Release with the DMG and its update signature; add `-- --dry-run` to upload nothing |
 | `devbox run keygen` | *Maintainer.* Creates the rules signing key in the login Keychain, or prints its public key |
+| `devbox run update-keygen` | *Maintainer.* Creates the separate app update signing key in the login Keychain, or prints its public key |
 | `devbox run sign-rules` | *Maintainer.* Validates and signs `rules/rules.json` with the Keychain key |
 
 The maintainer steps for rules and releases are in [`SKILL.md`](SKILL.md).
@@ -227,7 +260,7 @@ flowchart LR
     subgraph App["Bluehat.app"]
         UI["MenuBar · Views · Stores<br/>shield, panel, settings"]
         subgraph Core["BluehatCore"]
-            Feed["RuleFeed<br/>download and verify"]
+            Feed["RuleFeed<br/>local files, check and verify"]
             Scan["Scanner<br/>20 built-in checks"]
             Inv["ProjectFolders · NpmInventory"]
             Hist["ScanHistory"]
@@ -239,8 +272,8 @@ flowchart LR
     OSV -.->|CVE ranges, run by hand| RJ
     CI --> FS
     RJ --> Sign --> RS
-    RS -->|HTTPS| Feed
-    FS -->|HTTPS| Feed
+    RS -->|HTTPS, on Check for Updates| Feed
+    FS -->|HTTPS, on Check for Updates| Feed
     UI --> Feed
     UI --> Scan
     UI --> Hist
@@ -252,12 +285,12 @@ flowchart LR
 | [`Sources/Bluehat/`](Sources/Bluehat) | The menu bar app: `BluehatApp` and `AppDelegate` |
 | [`Sources/Bluehat/MenuBar/`](Sources/Bluehat/MenuBar) | The status item and the floating panel (AppKit) |
 | [`Sources/Bluehat/Views/`](Sources/Bluehat/Views) | SwiftUI views, one per file, and the display text of each check |
-| [`Sources/Bluehat/Stores/`](Sources/Bluehat/Stores) | `ScanStore` (scans, findings, schedule) and `SettingsStore` |
+| [`Sources/Bluehat/Stores/`](Sources/Bluehat/Stores) | `ScanStore` (scans, findings, schedule), `SettingsStore`, `FeedReview` (checking for, reviewing and accepting rule updates) and `AppUpdateReview` (checking for and installing app updates) |
 | [`Sources/Bluehat/Theme/`](Sources/Bluehat/Theme) | Design tokens: colours, spacing, fonts, motion |
 | [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, installs, scan records |
-| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache` |
+| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
 | [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader |
-| [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` |
+| [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` and signs app updates |
 | [`Tests/BluehatCoreTests/`](Tests/BluehatCoreTests) | Unit tests, mirroring `Sources/BluehatCore` |
 | [`scripts/`](scripts) | Bundle, install, release, publish and icon scripts |
 | [`assets/`](assets) | The app icon and the images in this README |
@@ -265,7 +298,10 @@ flowchart LR
 
 ## Rules
 
-Bluehat downloads two signed files:
+Bluehat ships with two signed files, copied into the app from `rules/` when it is
+built, and keeps any update you accept in
+`~/Library/Application Support/Bluehat/`. Every load verifies the signature, and
+the newest valid copy is used:
 
 - **The rulebook** (`rules.signed.json`): hand-written rules for malware files,
   launch items, shell lines, processes, ports, settings, extensions and project
@@ -278,7 +314,13 @@ Bluehat downloads two signed files:
   such as Cobalt Strike and Sliver from
   [ThreatFox](https://threatfox.abuse.ch/). A scheduled job in the rules
   repository builds and signs it every day, and it expires after 7 days. If it's
-  missing, the scan runs with the rulebook alone.
+  missing or expired, the scan runs with the rulebook alone until you accept a new
+  one.
+
+Settings › Rules shows the local and repository update dates. For the rulebook it
+lists each added, changed and removed rule by title and identifier; for the feed,
+which has thousands of entries, it shows counts. Both offer **Open Full File** to
+read the whole update before you accept or decline it.
 
 The rule format, check types and key rotation are documented in
 [`rules/README.md`](https://github.com/lysari/bluehat-rules#readme).
@@ -290,7 +332,8 @@ shipped and what's next.
 
 > [!IMPORTANT]
 > The app is not Developer ID signed or notarized yet, so macOS asks you to allow
-> it once with **Open Anyway**. There are no automatic app updates yet.
+> it once with **Open Anyway**. App updates never start on their own: you check and
+> install them from Settings › About.
 
 ## Contributing
 

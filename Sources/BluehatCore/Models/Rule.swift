@@ -38,13 +38,13 @@ public enum SoftwareProduct: String, Codable, Sendable, CaseIterable {
     }
 }
 
-public struct VersionRange: Codable, Sendable {
+public struct VersionRange: Codable, Sendable, Equatable {
     public let introduced: String
     public let fixed: String?
     public let lastAffected: String?
 }
 
-public struct Rule: Codable, Sendable, Identifiable {
+public struct Rule: Codable, Sendable, Identifiable, Equatable {
     public let id: String
     public let title: String
     public let severity: Severity
@@ -128,6 +128,10 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
 
     public func expiresSoon(now: Date) -> Bool {
         expires.map { $0.timeIntervalSince(now) <= Self.expiryWarning } ?? false
+    }
+
+    public func changes(from local: Rulebook?) -> EntryChanges<Rule> {
+        EntryChanges(from: local?.rules ?? [], to: rules, key: \.id)
     }
 
     public func appending(_ extraRules: [Rule]) -> Rulebook {

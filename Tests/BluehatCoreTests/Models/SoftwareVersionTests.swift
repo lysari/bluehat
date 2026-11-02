@@ -34,4 +34,21 @@ struct SoftwareVersionTests {
     func rejectsAnythingButDottedNumbers(text: String) {
         #expect(SoftwareVersion(text, for: .node) == nil)
     }
+
+    @Test func appReleasesCompareNumerically() throws {
+        func release(_ text: String) throws -> SoftwareVersion {
+            try #require(SoftwareVersion(appRelease: text))
+        }
+        #expect(try release("1.10") > release("1.9"))
+        #expect(try release("v1.10") > release("1.9"))
+        #expect(try release("2.0") > release("1.99.99"))
+        #expect(try release("1.2") == release("v1.2.0"))
+        #expect(try !(release("1.2") > release("1.2")))
+        #expect(try release("1.2").description == "1.2")
+    }
+
+    @Test(arguments: ["", "v", "1.2a", "1.2-beta", "1.2rc1", "1.2 ", "latest", "１.２"])
+    func appReleasesAreDottedNumbersOnly(text: String) {
+        #expect(SoftwareVersion(appRelease: text) == nil)
+    }
 }
