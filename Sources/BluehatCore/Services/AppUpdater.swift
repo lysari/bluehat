@@ -88,7 +88,7 @@ public struct AppUpdater: Sendable {
     public static let releasesURL = URL(string: "https://github.com/lysari/bluehat/releases")!
     static let bundleIdentifier = "com.lysari.bluehat"
     public static let signatureSuffix = ".sig"
-    public static let trustedKeys = [String]().map(RuleFeed.publicKey)
+    public static let trustedKeys = ["Sh+Ufbi7L2jndG2c/Ewjd1ZKKfFkR/UF6vL3cO3smmc="].map(RuleFeed.publicKey)
     public static let standard = AppUpdater(publicKeys: trustedKeys)
     static let latestReleaseURL = URL(string: "https://api.github.com/repos/lysari/bluehat/releases/latest")!
     static let apiHosts: Set<String> = ["api.github.com"]
