@@ -28,7 +28,7 @@ struct WelcomeView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: Metrics.spaceLarge) {
-                feature("checkmark.seal.fill", tint: Palette.safe, title: "Signed rules only", text: "Rules ship inside Bluehat and change only when you accept an update from \(RuleFeed.repositoryURL.path().dropFirst()) in Settings. They must carry your signature and are data, so they can't make Bluehat run anything.")
+                feature("checkmark.seal.fill", tint: Palette.safe, title: "Signed rules only", text: "Rules ship inside Bluehat and change only when you accept an update in Settings. They must carry your signature and are data, so they can't make Bluehat run anything.")
                 feature("hand.raised.fill", tint: Palette.brand, title: "Reports, never deletes", text: "Bluehat reads and reports. You decide what to fix, with steps for each finding.")
                 feature("folder.fill", tint: Palette.notice, title: "Folder access", text: "macOS will ask to let Bluehat read Downloads and Desktop to fingerprint files, and your project folders to check npm projects. If you say no, only the checks there are skipped.")
             }

@@ -80,9 +80,6 @@ struct RulesSettingsTab: View {
                 }
             }
             LabeledContent("Rules", value: rules.local.map { $0.payload.rules.count.formatted() } ?? "Unknown")
-            LabeledContent("Source") {
-                Link(String(RuleFeed.repositoryURL.path().dropFirst()), destination: RuleFeed.repositoryURL)
-            }
             LabeledContent(RuleFeed.trustedKeys.count == 1 ? "Rules key" : "Rules keys") {
                 VStack(alignment: .trailing, spacing: Metrics.spaceTight) {
                     ForEach(RuleFeed.trustedKeys.map(RuleFeed.fingerprint(of:)), id: \.self) { fingerprint in

@@ -88,7 +88,6 @@ public enum RuleFeedError: LocalizedError, Equatable {
 }
 
 public struct RuleFeed: Sendable {
-    public static let repositoryURL = URL(string: "https://github.com/lysari/bluehat-rules")!
     public static let trustedKeys = [
         "ejbt4bgFPpvJCdj/67M3kWasEgEs1eKUs9v/ii97PhA=",
         "7QnEa2pH6FwbhIMqMbVO/y2bhumiHbtIqshgdxzKSJA=",

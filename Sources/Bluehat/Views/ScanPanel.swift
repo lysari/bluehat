@@ -5,7 +5,6 @@ import SwiftUI
 struct ScanPanel: View {
     let store: ScanStore
     @State private var selectedFindingID: Finding.ID?
-    @Environment(\.openURL) private var openURL
     @Environment(\.openSettings) private var openSettings
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -102,7 +101,6 @@ struct ScanPanel: View {
                     NSApplication.shared.activate()
                 }
                 .keyboardShortcut(",")
-                Button("Open Rules Repository") { openURL(RuleFeed.repositoryURL) }
                 Divider()
                 Button("Quit Bluehat") { NSApplication.shared.terminate(nil) }
                     .keyboardShortcut("q")
@@ -179,7 +177,9 @@ struct ScanPanel: View {
 
     private var statusSubtitle: String {
         if store.appUpdate.isUpdating { return "Scanning is unavailable while Bluehat updates." }
-        if let failure = store.failure { return failure }
+        if let failure = store.failure {
+            return failure.contains("Settings › Rules") ? failure : "\(failure) Check for updates in Settings › Rules, or reinstall Bluehat."
+        }
         let ruleCount = store.rulebook?.rules.count ?? 0
         switch store.phase {
         case .idle: return "Checks for remote code execution, malware, worms, backdoors and weak settings."
@@ -250,9 +250,6 @@ struct ScanPanel: View {
                 .accessibilityHidden(true)
             Text(store.rulebook.map { "Signed rules v" + String($0.version) } ?? "Rules are verified before every scan")
                 .foregroundStyle(Palette.secondaryText)
-            Spacer()
-            Text(RuleFeed.repositoryURL.path().trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-                .foregroundStyle(Palette.tertiaryText)
         }
         .font(Typography.caption)
     }
