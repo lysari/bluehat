@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: upkeep-only-dry-run
+expected_outcome: |
+  Does only routine upkeep: reruns the CVE script, reviews the result, raises the XProtect minimum no higher than a shipped version, raises the version, reports rule budget and expiry, and adds no threat rules.
