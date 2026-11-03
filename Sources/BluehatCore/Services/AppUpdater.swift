@@ -39,7 +39,7 @@ public enum AppUpdateError: LocalizedError, Equatable {
         case .couldNotSaveDownload: "The download couldn't be saved on this Mac."
         case .noUpdateKey: "This build of Bluehat has no update key, so it can't install updates itself. Download the new version from the Releases page."
         case .unsignedRelease: "This release has no update signature, so Bluehat won't install it. Download it from the Releases page instead."
-        case .badSignature: "The update's signature is invalid. It wasn't signed by the update key built into Bluehat, so nothing was installed."
+        case .badSignature: "The update's signature is invalid. It wasn't signed by an update key built into Bluehat, so nothing was installed."
         case .manifestMismatch: "The update's signature doesn't cover this version of Bluehat, so nothing was installed."
         case .imageMismatch: "The download doesn't match its signature, so nothing was installed."
         case .notInstalled: "Bluehat can update itself only when it runs from an Applications folder. Download the new version from the Releases page."

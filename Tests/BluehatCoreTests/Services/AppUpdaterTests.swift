@@ -82,6 +82,67 @@ struct AppUpdaterTests {
         #expect(throws: AppUpdateError.badSignature) { try updater.open(signed, for: try version("1.3")) }
     }
 
+    @Test func acceptsAnUpdateSignedByTheFirstTrustedKey() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try writeImage()
+        let signed = try AppUpdater.sign(imageAt: file, version: "1.3", with: key)
+        let twoKeys = AppUpdater(publicKeys: [key.publicKey, Curve25519.Signing.PrivateKey().publicKey])
+        try twoKeys.confirmSigned(signed, imageAt: file, version: "1.3")
+    }
+
+    @Test func acceptsAnUpdateSignedByTheSecondTrustedKey() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try writeImage()
+        let second = Curve25519.Signing.PrivateKey()
+        let signed = try AppUpdater.sign(imageAt: file, version: "1.3", with: second)
+        let twoKeys = AppUpdater(publicKeys: [key.publicKey, second.publicKey])
+        try twoKeys.confirmSigned(signed, imageAt: file, version: "1.3")
+    }
+
+    @Test func refusesAnUpdateSignedByAKeyOutsideTheTrustedList() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try writeImage()
+        let signed = try AppUpdater.sign(imageAt: file, version: "1.3", with: Curve25519.Signing.PrivateKey())
+        let twoKeys = AppUpdater(publicKeys: [key.publicKey, Curve25519.Signing.PrivateKey().publicKey])
+        #expect(throws: AppUpdateError.badSignature) { try twoKeys.confirmSigned(signed, imageAt: file, version: "1.3") }
+    }
+
+    @Test func aBackupKeyFileSignsAnUpdateTheAppAccepts() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try writeImage()
+        let keyFile = directory.appending(component: "backup.key").path
+        let created = try KeyFile.create(atPath: keyFile)
+        let loaded = try #require(KeyFile.read(atPath: keyFile))
+        let signed = try AppUpdater.sign(imageAt: file, version: "1.3", with: loaded)
+        try AppUpdater(publicKeys: [key.publicKey, created.publicKey]).confirmSigned(signed, imageAt: file, version: "1.3")
+    }
+
+    @Test func aRotationReleaseReachesInstalledCopiesOnlyWithTheSurvivingKey() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try writeImage()
+        let leaked = key
+        let surviving = Curve25519.Signing.PrivateKey()
+        let replacement = Curve25519.Signing.PrivateKey()
+        let installed = AppUpdater(publicKeys: [leaked.publicKey, surviving.publicKey])
+        let rotated = AppUpdater(publicKeys: [surviving.publicKey, replacement.publicKey])
+
+        let bySurviving = try AppUpdater.sign(imageAt: file, version: "1.3", with: surviving)
+        try installed.confirmSigned(bySurviving, imageAt: file, version: "1.3")
+        try rotated.confirmSigned(bySurviving, imageAt: file, version: "1.3")
+
+        let byReplacement = try AppUpdater.sign(imageAt: file, version: "1.3", with: replacement)
+        #expect(throws: AppUpdateError.badSignature) { try installed.confirmSigned(byReplacement, imageAt: file, version: "1.3") }
+
+        let byLeaked = try AppUpdater.sign(imageAt: file, version: "1.3", with: leaked)
+        #expect(throws: AppUpdateError.badSignature) { try rotated.confirmSigned(byLeaked, imageAt: file, version: "1.3") }
+    }
+
+    @Test func theStandardUpdaterTrustsEveryBuiltInKey() {
+        #expect(!AppUpdater.trustedKeys.isEmpty)
+        #expect(AppUpdater.standard.publicKeys.map(\.rawRepresentation) == AppUpdater.trustedKeys.map(\.rawRepresentation))
+        #expect(Set(AppUpdater.trustedKeys.map(\.rawRepresentation)).count == AppUpdater.trustedKeys.count)
+    }
+
     @Test func refusesEverythingWithNoKeyConfigured() throws {
         let signed = try signedManifest(manifest())
         #expect(throws: AppUpdateError.noUpdateKey) { try AppUpdater(publicKeys: []).open(signed, for: try version("1.3")) }

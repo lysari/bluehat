@@ -128,9 +128,9 @@ folder, not from a real infection.
   Redirects to any other host or over plain HTTP are refused. No cookies, tokens or
   scan data are sent; GitHub sees your IP address, as with any download.
 - **App updates are signed separately from rules.** The rules keys can only change
-  data, so app updates use their own Ed25519 update key, which runs code and is never
-  used for rules. Bluehat refuses to install unless a signature made with that key
-  covers this version and the exact DMG. The SHA-256 in the release notes isn't
+  data, so app updates use their own Ed25519 update keys, which run code and are never
+  used for rules. Bluehat refuses to install unless a signature made with one of those
+  keys covers this version and the exact DMG. The SHA-256 in the release notes isn't
   enough, because anyone who could replace the DMG could replace the notes too. A
   build with no update key offers a link to the Releases page instead.
 - **An update can't leave you without an app.** After the signature check, Bluehat
@@ -239,9 +239,10 @@ cloned without `--recursive`, run `git submodule update --init`.
 | `devbox run publish` | *Maintainer.* Checks the repository, runs `release` and publishes a GitHub Release with the DMG and its update signature; add `-- --dry-run` to upload nothing |
 | `devbox run keygen` | *Maintainer.* Creates the rules signing key in the login Keychain, or prints its public key |
 | `devbox run update-keygen` | *Maintainer.* Creates the separate app update signing key in the login Keychain, or prints its public key |
+| `devbox run update-keygen-backup <file>` | *Maintainer.* Creates the offline backup update key in a new file outside any repository, without touching the Keychain |
 | `devbox run sign-rules` | *Maintainer.* Validates and signs `rules/rules.json` with the Keychain key |
 
-The maintainer steps for rules and releases are in [`SKILL.md`](SKILL.md).
+The maintainer steps for rules, releases and update key rotation are in [`SKILL.md`](SKILL.md).
 
 ## Architecture
 

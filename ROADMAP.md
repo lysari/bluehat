@@ -1,6 +1,6 @@
 # Bluehat Roadmap
 
-Updated 2026-11-02. Each phase ships as a working app; later phases depend on the earlier ones being done.
+Updated 2026-11-03. Each phase ships as a working app; later phases depend on the earlier ones being done.
 
 ## Phase 0: Foundation (done)
 
@@ -80,6 +80,8 @@ Rule content:
 - [x] `devbox run publish`: GitHub Release from pushed `main` only, notes generated from `scripts/release-notes.md`, checksum verified after upload, with `--dry-run`
 - [ ] Developer ID signing and notarization, so other Macs open it without warnings
 - [x] Signed app updates from Settings › About: user-started check, Ed25519 update key separate from the rules keys, atomic replace with rollback
+- [x] Offline backup update key tooling: `update-keygen --backup`, `sign-update --key-file`, `UPDATE_KEY_FILE` for `release` and `publish`, rotation steps in `SKILL.md`
+- [ ] Backup update key created, and its public key shipped in `AppUpdater.trustedKeys`
 - [ ] DMG release built by CI
 
 ## Phase 6: Quality

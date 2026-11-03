@@ -6,7 +6,7 @@ let keychainService = "bluehat-rules-signing"
 let updateKeychainService = "bluehat-update-signing"
 let keychainAccount = "bluehat"
 let noUpdateKeyStatus: Int32 = 3
-let usage = "Usage: bluehat-sign keygen | bluehat-sign backup-keygen <key file> | bluehat-sign sign <rules.json> [--key-file <key file>] | bluehat-sign update-keygen | bluehat-sign sign-update <dmg> <version>"
+let usage = "Usage: bluehat-sign keygen | bluehat-sign backup-keygen <key file> | bluehat-sign sign <rules.json> [--key-file <key file>] | bluehat-sign update-keygen | bluehat-sign update-keygen --backup <key file> | bluehat-sign sign-update <dmg> <version> [--key-file <key file>]"
 
 func runSecurity(_ arguments: [String], input: String? = nil) -> (status: Int32, output: String) {
     let process = Process()
@@ -30,14 +30,6 @@ func runSecurity(_ arguments: [String], input: String? = nil) -> (status: Int32,
 func storedKey(service: String = keychainService) -> Curve25519.Signing.PrivateKey? {
     let result = runSecurity(["find-generic-password", "-s", service, "-a", keychainAccount, "-w"])
     guard result.status == 0, let raw = Data(base64Encoded: result.output) else { return nil }
-    return try? Curve25519.Signing.PrivateKey(rawRepresentation: raw)
-}
-
-func fileKey(_ path: String) -> Curve25519.Signing.PrivateKey? {
-    guard
-        let text = try? String(contentsOfFile: path, encoding: .utf8),
-        let raw = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines))
-    else { return nil }
     return try? Curve25519.Signing.PrivateKey(rawRepresentation: raw)
 }
 
@@ -87,12 +79,27 @@ func updateKeygen() {
     describeUpdateKey(createStoredKey(service: updateKeychainService))
 }
 
-func signUpdate(_ path: String, version: String) {
+func updateBackupKeygen(_ path: String) {
+    let key: Curve25519.Signing.PrivateKey
+    do {
+        key = try KeyFile.create(atPath: path)
+    } catch {
+        fail(error.localizedDescription)
+    }
+    print("Public key: \(key.publicKey.rawRepresentation.base64EncodedString())")
+    print("Fingerprint: \(RuleFeed.fingerprint(of: key.publicKey))")
+    print("Move \(path) offline now, for example to an encrypted USB drive, and keep it out of every repository.")
+}
+
+func signUpdate(_ path: String, version: String, keyFile: String?) {
     guard !AppUpdater.trustedKeys.isEmpty else {
         FileHandle.standardError.write(Data("This build has no update key in AppUpdater.trustedKeys. Run: bluehat-sign update-keygen, then add its public key and rebuild.\n".utf8))
         exit(noUpdateKeyStatus)
     }
-    guard let key = storedKey(service: updateKeychainService) else { fail("No update signing key in Keychain. Run: bluehat-sign update-keygen") }
+    let loadedKey = keyFile.map(KeyFile.read(atPath:)) ?? storedKey(service: updateKeychainService)
+    guard let key = loadedKey else {
+        fail(keyFile.map { "Cannot read a signing key from \($0)." } ?? "No update signing key in Keychain. Run: bluehat-sign update-keygen")
+    }
     guard AppUpdater.trustedKeys.contains(where: { $0.rawRepresentation == key.publicKey.rawRepresentation }) else {
         fail("Refusing to sign: the app does not trust update key \(RuleFeed.fingerprint(of: key.publicKey)), so installed apps would reject this update.")
     }
@@ -109,24 +116,18 @@ func signUpdate(_ path: String, version: String) {
 }
 
 func backupKeygen(_ path: String) {
-    let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-    guard descriptor >= 0 else {
-        fail(errno == EEXIST ? "\(path) already exists. Refusing to overwrite a key." : "Cannot create \(path).")
-    }
-    let key = Curve25519.Signing.PrivateKey()
-    let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    let key: Curve25519.Signing.PrivateKey
     do {
-        try file.write(contentsOf: Data((key.rawRepresentation.base64EncodedString() + "\n").utf8))
-        try file.close()
+        key = try KeyFile.create(atPath: path)
     } catch {
-        fail("Cannot write \(path).")
+        fail(error.localizedDescription)
     }
     print("Created backup signing key at \(path) (readable only by you). Keep it offline, for example on an encrypted USB drive, and never commit it.")
     describe(key)
 }
 
 func sign(_ path: String, keyFile: String?) {
-    let loadedKey = keyFile.map(fileKey) ?? storedKey()
+    let loadedKey = keyFile.map(KeyFile.read(atPath:)) ?? storedKey()
     guard let key = loadedKey else {
         fail(keyFile.map { "Cannot read a signing key from \($0)." } ?? "No signing key in Keychain. Run: bluehat-sign keygen")
     }
@@ -182,8 +183,12 @@ case "sign" where arguments.count == 4 && arguments[2] == "--key-file":
     sign(arguments[1], keyFile: arguments[3])
 case "update-keygen" where arguments.count == 1:
     updateKeygen()
+case "update-keygen" where arguments.count == 3 && arguments[1] == "--backup":
+    updateBackupKeygen(arguments[2])
 case "sign-update" where arguments.count == 3:
-    signUpdate(arguments[1], version: arguments[2])
+    signUpdate(arguments[1], version: arguments[2], keyFile: nil)
+case "sign-update" where arguments.count == 5 && arguments[3] == "--key-file":
+    signUpdate(arguments[1], version: arguments[2], keyFile: arguments[4])
 default:
     fail(usage)
 }

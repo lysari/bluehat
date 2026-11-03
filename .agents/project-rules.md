@@ -13,7 +13,7 @@ Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
 │   ├── Models/                  # Rule, Rulebook, MalwareFeed, EntryChanges (update comparison), AppRelease (the GitHub release of the app), NpmPackage, RemoteHost, Connection, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
 │   ├── Services/                # RuleFeed (local load, check, review and accept of rules and the malware feed, all verified), AppUpdater (GitHub check, download, update signature), AppInstaller (mount, inspect, atomic replace, rollback), Scanner (checks), SignatureChecks (runs each code-signing call on a scanned path on its own thread under a time limit, tolerates a limited number of stuck paths per scan), ProjectFolders (project discovery), NpmInventory (lockfile and node_modules reading), ScanHistory (saved scans), NotarizationCache (saved Gatekeeper verdicts)
-│   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads, whole or just the start)
+│   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads, whole or just the start), KeyFile (creates and reads offline signing key files, refusing any folder inside a repository)
 ├── Bluehat/                     # menu bar app: BluehatApp (scenes), AppDelegate (owns ScanStore, starts the menu bar)
 │   ├── MenuBar/                 # AppKit glue: MenuBarController (status item, panel level), MenuBarPanel (floating NSPanel hosting ScanPanel)
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
@@ -48,6 +48,7 @@ LICENSE                          # MIT
 - Finding projects in the user's project folders: `ProjectFolders.directories(in:containing:)`
 - Calling the Security framework on a path a scan found: `SignatureChecks.inspect` (never `SecStaticCodeCreateWithPath` directly, since it can block forever on a FIFO)
 - Naming paths in a scan notice: `Scanner.pathList` (tilde, displayable, clipped, at most `maxNoticePaths` names)
+- Creating or reading an offline signing key file: `KeyFile.create` / `KeyFile.read`
 - Reading any file an attacker can influence: `RegularFile.read` / `RegularFile.readStart` / `RegularFile.open` (never `FileHandle(forReadingAtPath:)`, `FileManager.contents` or `Data(contentsOf:)`)
 
 ## UI & Styling Conventions
@@ -63,7 +64,7 @@ LICENSE                          # MIT
 - Install: `devbox run install`
 - Release: `devbox run release` (builds the DMG and, when the build has an update key, its update signature; uploads nothing)
 - Publish: `devbox run publish` (`devbox run publish -- --dry-run` first; refuses without an update signature)
-- Update key: `devbox run update-keygen`
+- Update key: `devbox run update-keygen`; offline backup: `devbox run update-keygen-backup <file>`; sign a release with the backup: `UPDATE_KEY_FILE=<file> devbox run publish` (rotation steps in `SKILL.md`)
 
 ## Decisions
 - Stack: Swift + SwiftUI, answered 2026-10-30
@@ -72,3 +73,4 @@ LICENSE                          # MIT
 - Environment: Devbox, answered 2026-10-30
 - Rules: scans use local signed files, updates only through Settings › Rules after the user accepts, decided 2026-11-02
 - App updates: user-started from Settings › About, Ed25519 update key separate from the rules keys, fail closed, decided 2026-11-02
+- Update key backup: one offline file outside any repository, named per command through `UPDATE_KEY_FILE` and never imported into the Keychain, decided 2026-11-03

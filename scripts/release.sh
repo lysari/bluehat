@@ -12,6 +12,10 @@ for tool in swift lipo codesign security plutil hdiutil shasum ditto; do
         exit 1
     fi
 done
+if [ -n "${UPDATE_KEY_FILE:-}" ] && [ ! -f "$UPDATE_KEY_FILE" ]; then
+    echo "release.sh: UPDATE_KEY_FILE $UPDATE_KEY_FILE not found" >&2
+    exit 1
+fi
 
 sh scripts/bundle.sh universal
 app=.build/Bluehat.app
@@ -67,7 +71,7 @@ hdiutil verify "$dmg"
 signature=$dmg.sig
 rm -f "$signature"
 sign_status=0
-swift run bluehat-sign sign-update "$dmg" "$version" || sign_status=$?
+swift run bluehat-sign sign-update "$dmg" "$version" ${UPDATE_KEY_FILE:+--key-file "$UPDATE_KEY_FILE"} || sign_status=$?
 case $sign_status in
     0) ;;
     3) echo "release.sh: no update signature written; publish.sh refuses to publish without one" >&2 ;;

@@ -11,7 +11,7 @@ struct AppUpdateSection: View {
     var body: some View {
         Section {
             checkRow
-            LabeledContent("Update key") {
+            LabeledContent(AppUpdater.trustedKeys.count > 1 ? "Update keys" : "Update key") {
                 Text(AppUpdater.trustedKeys.isEmpty ? "Not set in this build" : AppUpdater.trustedKeys.map(RuleFeed.fingerprint(of:)).joined(separator: "\n"))
                     .font(Typography.detail)
                     .textSelection(.enabled)
@@ -30,7 +30,7 @@ struct AppUpdateSection: View {
         } header: {
             Text("App updates")
         } footer: {
-            Text("Bluehat contacts GitHub only when you click Check for Updates or Update and Relaunch. It installs an update only if the download is signed by the update key built into this app. The release notes come from GitHub and aren't covered by that signature.")
+            Text("Bluehat contacts GitHub only when you click Check for Updates or Update and Relaunch. It installs an update only if the download is signed by an update key built into this app. The release notes come from GitHub and aren't covered by that signature.")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.secondaryText)
         }

@@ -16,7 +16,7 @@ Bluehat is a menu bar threat scanner for macOS. It checks for known malware, per
 3. Go to **System Settings › Privacy & Security** and click **Open Anyway**, then confirm.
 4. Look for the shield in the menu bar.
 
-To update the app, click **Check for Updates** in Settings › About. Bluehat installs an update only if it's signed by the update key built into the app; versions without that key need the new DMG from Releases. Rules update from Settings › Rules, after you review the changes.
+To update the app, click **Check for Updates** in Settings › About. Bluehat installs an update only if it's signed by an update key built into the app; versions with no update key need the new DMG from Releases. Rules update from Settings › Rules, after you review the changes.
 
 ## Verify your download
 

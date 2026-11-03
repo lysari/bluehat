@@ -15,7 +15,7 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 2. Click the shield in the menu bar (after a scan it shows the number of issues beside it), then **Scan Now**. The ring fills per check area as the scan runs. The panel stays open above other windows until you click the shield again.
 3. Click a finding for what was found, why it matters, how to fix it, and source links. **Ignore** hides that exact finding; undo it in Settings › Ignored. A software version finding also offers **Update** (opens Terminal with the upgrade command, which runs only after you press Return) and **Remove** (moves an nvm, Volta, fnm, asdf, mise, pyenv or rbenv copy to the Trash after you confirm its path, or opens Terminal with `brew` for a Homebrew copy). Bluehat never changes anything unless you ask, and never deletes permanently.
 4. Settings (Cmd+, from the `⋯` menu): launch at login, scan schedule and new-issue notifications, project folders to check for npm projects (pre-filled with ~/Developer, ~/Projects, ~/Code and similar folders that exist), scan history (last 30 scans with what changed), ignored findings, and Rules: the local and repository update dates of the rules and the malware feed, Check for Updates, the added, changed and removed rules (counts for the feed), Open Full File, Accept Update and Decline, plus the rules keys, the fingerprint, npm package and C2 address counts, and the feed key. About: the current version, the update key and Check for Updates, which shows either "Up to date" or the new version, its date and its notes, with **Update and Relaunch**.
-5. App updates happen only when the user clicks. **Check for Updates** sends one request to `api.github.com`; **Update and Relaunch** downloads the signature file and the DMG from `github.com` and GitHub's download servers, with a progress bar and Cancel. No timer, launch path or scan reaches this code. Bluehat installs only if an Ed25519 signature from the update key built into the app covers this version and the exact DMG, and the app inside has the expected bundle identifier, a newer version and a valid code signature. The new app is swapped in atomically, and the old one is put back if the new one doesn't start. A build with no update key, a release with no signature file, or a copy running outside `/Applications` or `~/Applications` (translocated, in `.build`, or in a folder it can't write) shows why and links to the Releases page instead. Updates and scans never run at the same time.
+5. App updates happen only when the user clicks. **Check for Updates** sends one request to `api.github.com`; **Update and Relaunch** downloads the signature file and the DMG from `github.com` and GitHub's download servers, with a progress bar and Cancel. No timer, launch path or scan reaches this code. Bluehat installs only if an Ed25519 signature from an update key built into the app covers this version and the exact DMG, and the app inside has the expected bundle identifier, a newer version and a valid code signature. The new app is swapped in atomically, and the old one is put back if the new one doesn't start. A build with no update key, a release with no signature file, or a copy running outside `/Applications` or `~/Applications` (translocated, in `.build`, or in a folder it can't write) shows why and links to the Releases page instead. Updates and scans never run at the same time.
 
 ## Add or change a rule
 
@@ -43,10 +43,9 @@ Bluehat is a macOS menu bar app. Clicking its shield icon opens a panel with a *
 | `devbox run sign-rules` | Validate and sign `rules/rules.json` with the Keychain key, stamping `issued` and `expires` |
 | `devbox run -- swift run bluehat-sign backup-keygen <file>` | Create an offline backup signing key for rules |
 | `devbox run update-keygen` | Create the app update signing key in the login Keychain, or print the existing public key |
+| `devbox run update-keygen-backup <file>` | Create the offline backup app update key in a new file. Never reads or changes the Keychain |
 
 ## Make a release
-
-Before the first release with in-app updates, create the update key once: run `devbox run update-keygen`, replace `[String]()` in `AppUpdater.trustedKeys` (`Sources/BluehatCore/Services/AppUpdater.swift`) with `["<public key>"]`, run `devbox run test`, then commit and push.
 
 1. Update the `rules` submodule (`git -C rules pull`) so the app ships current signed files; the feed expires 7 days after it was built. Raise `version` (and `build`) at the top of `scripts/bundle.sh`, the only place the version is set (the DMG name and the About tab read it from there), then commit and push it.
 2. Run `devbox run publish -- --dry-run`. It runs every check and the build, prints the release notes and the exact `gh` command, and uploads nothing. macOS asks you to approve access to the update key in the Keychain, because the build signs the DMG.
@@ -54,8 +53,49 @@ Before the first release with in-app updates, create the update key once: run `d
 
 The app is not Developer ID signed or notarized, so recipients see "Apple could not verify" the first time. They drag Bluehat into Applications, double-click it, click Done, then open System Settings › Privacy & Security and click **Open Anyway** next to the Bluehat message, and confirm. They need macOS 26 or later. Rules update from Settings › Rules after the user reviews them. App updates install from Settings › About; versions 1.0 to 1.2 have no updater, so they need the new DMG once. An app replaced this way carries no quarantine flag, so macOS shouldn't ask for Open Anyway again, and privacy permissions should carry over as long as each release is signed by the same Apple Development identity. Neither has been confirmed on a real in-app update yet, so check both on the first one.
 
+## Update keys
+
+The app accepts an update signed by any key in `AppUpdater.trustedKeys` (`Sources/BluehatCore/Services/AppUpdater.swift`). The primary key lives in the login Keychain under service `bluehat-update-signing`. The backup key lives in one offline file. Both authorise running code, so never add a rules key to that list.
+
+### Create the backup key
+
+1. Run `devbox run update-keygen-backup /Volumes/<encrypted drive>/bluehat-update-backup.key`, with an encrypted APFS or Mac OS Extended drive (exFAT can't keep a file owner-only, so the command refuses it). It writes a new 0600 file and prints the public key, its fingerprint and a reminder. It refuses an existing file and any folder inside a Git repository or Swift package, and it never reads or changes the Keychain.
+2. Add the printed public key to the `AppUpdater.trustedKeys` line, run `devbox run test`, commit, and publish a release as usual.
+3. Eject the drive and store it away from this Mac.
+
+The backup protects only copies that have installed a release holding its public key, so ship that release soon after creating it. To check the file still works, sign any small file (it writes `<file>.sig` beside it and publishes nothing): `devbox run -- swift run bluehat-sign sign-update <file> <version> --key-file <backup file>`.
+
+### Sign a release with the backup key
+
+Name the file for one command. `release.sh` passes `UPDATE_KEY_FILE` to `sign-update --key-file`, and `publish.sh` runs `release.sh`, so every publish check still applies:
+
+```bash
+UPDATE_KEY_FILE=/Volumes/<encrypted drive>/bluehat-update-backup.key devbox run publish -- --dry-run
+UPDATE_KEY_FILE=/Volumes/<encrypted drive>/bluehat-update-backup.key devbox run publish
+```
+
+Use an absolute path. When the variable is set the Keychain is never read, and a missing or wrong file stops the release instead of falling back to the primary key. `sign-update` refuses a key that isn't in the build's `AppUpdater.trustedKeys`. Never import the file into the Keychain or leave the variable exported, then eject the drive.
+
+The DMG's app must still carry the same Apple team's code signature, or installed copies refuse it as a different developer. The backup key doesn't replace that, so a new Mac needs an Apple Development certificate from the same team first.
+
+### Rotate a key
+
+Installed copies only trust the list they shipped with, so **sign the rotation release with the surviving key, never the new one**. A release signed only by the new key is refused by every installed copy. `sign-update` can't catch this, because it checks the list in the new build.
+
+**The primary key leaked:**
+
+1. Delete it from the Keychain (`security delete-generic-password -s bluehat-update-signing -a bluehat`), then run `devbox run update-keygen` for a new primary. While the old item exists, `update-keygen` only prints it.
+2. In `AppUpdater.trustedKeys`, remove the leaked key and add the new primary, keeping the backup.
+3. Raise the version, run `devbox run test`, commit and push.
+4. Publish with the backup key as above, with `RELEASE_NOTES` telling users to update now. A copy that hasn't installed this release still trusts the leaked key.
+
+**The primary key was lost:** the same steps, without the delete. Remove the lost key too, since someone may find it.
+
+**The backup key leaked or was lost:** run `devbox run update-keygen-backup <new file>`, replace the old backup in `AppUpdater.trustedKeys` with the new public key, and publish as usual, signed by the primary in the Keychain.
+
+**Both keys are gone:** run `devbox run update-keygen`, create a new backup, and put only those two in `AppUpdater.trustedKeys`. Installed copies can't verify anything signed by them, so users need the new DMG once.
+
 ## Requirements
 
 - macOS 26 or later, with Xcode at `/Applications/Xcode.app` (devbox.json points `DEVELOPER_DIR` and `SDKROOT` at it; the Command Line Tools lack the SwiftUI macro plugin).
-- The update signing key lives only in the login Keychain under service `bluehat-update-signing`. It is separate from the rules keys because it authorises running code, so never add a rules key to `AppUpdater.trustedKeys`. If it is lost, run `devbox run update-keygen` on a fresh Keychain and add the new public key to `AppUpdater.trustedKeys`. Copies already installed can't verify releases signed with the new key, so they need the new DMG once.
 - The private signing key lives only in the login Keychain under service `bluehat-rules-signing`. If it is lost, run `devbox run keygen` on a fresh Keychain, put the new public key in `RuleFeed.trustedKeys` and in `TRUSTED_KEYS` in `rules/.github/workflows/verify.yml`, rebuild, and re-sign the rules.
