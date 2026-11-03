@@ -29,7 +29,7 @@ Then collect:
 
 ## 2. Routine upkeep
 
-- **CVE rules:** run `cd rules && python3 -I .github/scripts/update_cve_rules.py`, then review the diff. The script owns every `softwareVersion` rule with a `cve.` id, so never hand-edit those. Read the `references` on each added rule, because they come straight from the CVE record and the app shows them to users. Flag any link that isn't NVD, OSV, the CVE List, or the affected project or vendor, without opening it.
+- **CVE rules:** run `cd rules && python3 -I .github/scripts/update_cve_rules.py`, then review the diff. The script owns every `softwareVersion` rule with a `cve.` id, so never hand-edit those. Read the `references` on each added rule, because the app shows them to users. The script keeps only NVD, OSV, the CVE List and the product's own sites, so a link outside those means the filter failed: flag it without opening it, and don't publish.
 - **XProtect:** run `xprotect version`, and set `minimumVersion` on `xprotect.outdated` a few releases below the newest version you can confirm. Only raise it, and never above a version Apple has shipped, or every Mac gets flagged.
 
 ## 3. Research
