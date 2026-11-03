@@ -165,9 +165,11 @@ folder, not from a real infection.
 - **Connections are only listed.** The connection check reads the Mac's open
   connections with `netstat` and compares their remote IP addresses with the
   rules. It never connects to a listed address and never looks up a name.
-- **Capped reads.** Files an attacker could plant are read only if they are
-  regular files under a size limit, so a huge file, a pipe or a device can't
-  stall a scan.
+- **Capped reads and time limits.** Files an attacker could plant are read only
+  if they are regular files and only up to a size limit, and a file past that
+  limit is named in the scan's notice. A huge file, a pipe or a device can't
+  stall a scan, and a signature check or macOS tool that never finishes is
+  abandoned at a time limit.
 - **You stay in control.** **Move to Trash** asks you to confirm the exact path
   first, and nothing is ever deleted permanently. **Update** opens Terminal with
   the command on screen and runs it only after you press Return.
@@ -288,7 +290,7 @@ flowchart LR
 | [`Sources/Bluehat/Stores/`](Sources/Bluehat/Stores) | `ScanStore` (scans, findings, schedule), `SettingsStore`, `FeedReview` (checking for, reviewing and accepting rule updates) and `AppUpdateReview` (checking for and installing app updates) |
 | [`Sources/Bluehat/Theme/`](Sources/Bluehat/Theme) | Design tokens: colours, spacing, fonts, motion |
 | [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, installs, scan records |
-| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
+| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `SignatureChecks` (time limits on code-signing calls), `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
 | [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader |
 | [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` and signs app updates |
 | [`Tests/BluehatCoreTests/`](Tests/BluehatCoreTests) | Unit tests, mirroring `Sources/BluehatCore` |

@@ -26,4 +26,12 @@ enum RegularFile {
             return nil
         }
     }
+
+    /// Reads at most maxBytes from the start of a regular file and returns them with the file's full size, or nil when it can't be opened with `open(atPath:followingSymlinks:)`.
+    /// Compare the size with maxBytes to tell whether the file was cut. Use it when a file over the limit must be reported, not silently dropped.
+    static func readStart(atPath path: String, maxBytes: Int, followingSymlinks: Bool) -> (data: Data, size: Int)? {
+        guard let file = open(atPath: path, followingSymlinks: followingSymlinks) else { return nil }
+        defer { try? file.handle.close() }
+        return ((try? file.handle.read(upToCount: maxBytes)) ?? Data(), file.size)
+    }
 }

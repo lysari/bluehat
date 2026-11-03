@@ -48,6 +48,10 @@ public struct Scanner: Sendable {
     static let notarizedRequirement = "notarized"
     static let maxNotarizationAssessments = 5
     static let notarizationTimeout: TimeInterval = 20
+    static let toolTimeout: TimeInterval = 60
+    static let toolKillDelay: TimeInterval = 2
+    static let unfinishedSignatureProblem = "couldn't be checked because reading it never finished"
+    static let maxNoticePaths = 3
     static let networkPathTimeout: TimeInterval = 2
     static let maxReadBytes = 1_000_000
     static let maxMatchedLength = 8_192
@@ -67,6 +71,7 @@ public struct Scanner: Sendable {
         var findings: [Finding] = []
         var notices: [String] = []
         var projects: [(path: String, files: Set<String>)]?
+        let signatureChecks = SignatureChecks()
         for area in rulebook.areas {
             let rules = rulebook.rules.filter { $0.check == area }
             if projects == nil, [.npmPackage, .projectFile].contains(area) {
@@ -74,14 +79,15 @@ public struct Scanner: Sendable {
                 projects = walk.directories
                 notices += [walk.notice].compactMap { $0 }
             }
-            let areaFindings = Self.withoutFeedFileDuplicates(Self.findings(in: area, rules: rules, projects: projects ?? [], notices: &notices), reported: findings)
+            let areaFindings = Self.withoutFeedFileDuplicates(Self.findings(in: area, rules: rules, projects: projects ?? [], signatureChecks: signatureChecks, notices: &notices), reported: findings)
             findings += areaFindings
             onAreaFinished(area, areaFindings)
         }
-        return (findings.sorted { $0.rule.severity > $1.rule.severity }, notices)
+        notices += [signatureChecks.skippedNotice].compactMap { $0 }
+        return (findings.sorted { $0.rule.severity > $1.rule.severity }, Self.withoutRepeats(notices))
     }
 
-    static func findings(in area: CheckKind, rules: [Rule], projects: [(path: String, files: Set<String>)], notices: inout [String]) -> [Finding] {
+    static func findings(in area: CheckKind, rules: [Rule], projects: [(path: String, files: Set<String>)], signatureChecks: SignatureChecks = SignatureChecks(), notices: inout [String]) -> [Finding] {
         switch area {
         case .path:
             return rules.flatMap { rule in
@@ -90,27 +96,20 @@ public struct Scanner: Sendable {
                 }
             }
         case .launchItem:
-            let launchItems = launchItemCommands()
-            return rules.flatMap { rule in
-                let regexes = regexes(rule.patterns)
-                return launchItems.filter { matches(regexes, $0.command) || matches(regexes, $0.path) }.map {
-                    Finding(rule: rule, detail: $0.command, path: $0.path)
-                }
-            }
+            let launchItems = launchItemCommands(in: launchItemDirectories.map(expand))
+            let checked = launchItemFindings(rules, items: launchItems.items)
+            notices += [launchItems.notice, checked.notice].compactMap { $0 }
+            return checked.findings
         case .shellProfile:
-            let profiles = shellProfileFiles.map(expand).map { (path: $0, lines: lines(of: readText($0))) }
-            return rules.flatMap { rule in
-                let regexes = regexes(rule.patterns)
-                return profiles.flatMap { profile in
-                    profile.lines.filter { matches(regexes, $0) }.map {
-                        Finding(rule: rule, detail: $0, path: profile.path)
-                    }
-                }
-            }
+            let checked = shellProfileFindings(rules, files: shellProfileFiles.map(expand))
+            notices += checked.notices
+            return checked.findings
         case .process:
             return matchingLines(lines(of: runTool("/bin/ps", ["-axww", "-o", "command="])), rules: rules)
         case .crontab:
-            return matchingLines(lines(of: runTool("/usr/bin/crontab", ["-l"])), rules: rules)
+            let checked = crontabFindings(rules, lines: lines(of: runTool("/usr/bin/crontab", ["-l"])))
+            notices += [checked.notice].compactMap { $0 }
+            return checked.findings
         case .listeningPort:
             let listeners = listeningPorts()
             return rules.flatMap { rule in
@@ -132,28 +131,13 @@ public struct Scanner: Sendable {
                 rule.setting.flatMap(settingProblem).map { Finding(rule: rule, detail: $0, path: nil) }
             }
         case .launchItemSignature:
-            let items = launchItemCommands().compactMap { item -> (path: String, program: String)? in
-                guard let program = item.program, program.hasPrefix("/"), FileManager.default.fileExists(atPath: program) else { return nil }
-                return (item.path, program)
-            }
-            let problems = Set(items.map(\.program)).reduce(into: [String: String]()) { problems, program in
-                problems[program] = signatureProblem(at: URL(fileURLWithPath: program))
-            }
-            return rules.flatMap { rule in
-                items.compactMap { item in
-                    problems[item.program].map { Finding(rule: rule, detail: "\(item.program) \($0)", path: item.path) }
-                }
-            }
+            let launchItems = launchItemCommands(in: launchItemDirectories.map(expand))
+            notices += [launchItems.notice].compactMap { $0 }
+            return launchItemSignatureFindings(rules, items: launchItems.items, checks: signatureChecks)
         case .sshKey:
-            let keys = authorizedKeyFiles.map(expand).flatMap { file in
-                authorizedKeys(in: readText(file)).map { (file: file, key: $0) }
-            }
-            return rules.flatMap { rule in
-                let regexes = regexes(rule.patterns)
-                return keys.filter { rule.patterns == nil || matches(regexes, $0.key.line) }.map {
-                    Finding(rule: rule, detail: $0.key.summary, path: $0.file)
-                }
-            }
+            let checked = sshKeyFindings(rules, files: authorizedKeyFiles.map(expand))
+            notices += checked.notices
+            return checked.findings
         case .profile:
             let installed = profiles(fromProfilesOutput: runTool("/usr/bin/profiles", ["show", "-type", "configuration"]))
             return rules.flatMap { rule in
@@ -164,7 +148,10 @@ public struct Scanner: Sendable {
                 .map { Finding(rule: rule, detail: "\($0.name) (\($0.identifier)) · payloads: \($0.payloadTypes.joined(separator: ", "))", path: nil) }
             }
         case .browserExtension:
-            let extensions = chromiumBrowsers.flatMap { chromiumExtensions(browser: $0.0, root: expand($0.1)) } + firefoxExtensions(profilesRoot: expand(firefoxProfiles))
+            let chromium = chromiumBrowsers.map { chromiumExtensions(browser: $0.0, root: expand($0.1)) }
+            let firefox = firefoxExtensions(profilesRoot: expand(firefoxProfiles))
+            let extensions = chromium.flatMap(\.extensions) + firefox.extensions
+            notices += [oversizedFilesNotice("Browser extension check", paths: chromium.flatMap(\.oversized) + firefox.oversized)].compactMap { $0 }
             return rules.flatMap { rule in
                 let regexes = regexes(rule.patterns)
                 return extensions.filter { matches(regexes, $0.descriptor) }.map {
@@ -172,17 +159,7 @@ public struct Scanner: Sendable {
                 }
             }
         case .appSignature:
-            let apps = installedApps()
-            let problems = Mutex<[(path: String, problem: String)]>([])
-            DispatchQueue.concurrentPerform(iterations: apps.count) { index in
-                if let problem = signatureProblem(at: apps[index]) {
-                    problems.withLock { $0.append((apps[index].path, problem)) }
-                }
-            }
-            let sorted = problems.withLock { $0 }.sorted { $0.path < $1.path }
-            return rules.flatMap { rule in
-                sorted.map { Finding(rule: rule, detail: "\(URL(fileURLWithPath: $0.path).lastPathComponent) \($0.problem)", path: $0.path) }
-            }
+            return appSignatureFindings(rules, apps: installedApps(), checks: signatureChecks)
         case .softwareVersion:
             return versionFindings(rules, installs: installedSoftware())
         case .npmPackage:
@@ -208,7 +185,11 @@ public struct Scanner: Sendable {
             return outboundFindings(rules, connections: connections)
         case .notarization:
             var cache = NotarizationCache()
-            let checked = notarizationFindings(rules, apps: installedApps().compactMap(developerIDApp), cache: &cache) { path in
+            let installed = installedApps()
+            let candidates = installed.compactMap { developerIDApp(at: $0, checks: signatureChecks) }
+            notices += [unfinishedNotarizationNotice(apps: installed, checks: signatureChecks)].compactMap { $0 }
+            let unchecked = signatureChecks.stuckPaths.union(signatureChecks.skippedPaths)
+            let checked = notarizationFindings(rules, apps: candidates, unchecked: unchecked, cache: &cache) { path in
                 guard isNetworkAvailable() else { return nil }
                 return notarizationVerdict(fromSpctlOutput: runTool("/usr/sbin/spctl", ["--assess", "--type", "execute", "-v", path], includingErrorOutput: true, timeout: notarizationTimeout), path: path)
             }
@@ -222,13 +203,50 @@ public struct Scanner: Sendable {
         }
     }
 
-    static func developerIDApp(at url: URL) -> (path: String, team: String, cdhash: String, isNotarized: Bool)? {
-        var staticCode: SecStaticCode?
+    static func launchItemSignatureFindings(_ rules: [Rule], items: [(path: String, program: String?, command: String)], checks: SignatureChecks) -> [Finding] {
+        let items = items.compactMap { item -> (path: String, program: String)? in
+            guard let program = item.program, program.hasPrefix("/"), FileManager.default.fileExists(atPath: program) else { return nil }
+            return (item.path, program)
+        }
+        let problems = Set(items.map(\.program)).reduce(into: [String: String]()) { problems, program in
+            problems[program] = signatureProblem(at: URL(fileURLWithPath: program), checks: checks)
+        }
+        return rules.flatMap { rule in
+            items.compactMap { item in
+                problems[item.program].map { Finding(rule: rule, detail: "\(item.program) \($0)", path: item.path) }
+            }
+        }
+    }
+
+    static func appSignatureFindings(_ rules: [Rule], apps: [URL], checks: SignatureChecks) -> [Finding] {
+        let problems = Mutex<[(path: String, problem: String)]>([])
+        DispatchQueue.concurrentPerform(iterations: apps.count) { index in
+            if let problem = signatureProblem(at: apps[index], checks: checks) {
+                problems.withLock { $0.append((apps[index].path, problem)) }
+            }
+        }
+        let sorted = problems.withLock { $0 }.sorted { $0.path < $1.path }
+        return rules.flatMap { rule in
+            sorted.map { Finding(rule: rule, detail: "\(URL(fileURLWithPath: $0.path).lastPathComponent) \($0.problem)", path: $0.path) }
+        }
+    }
+
+    static func unfinishedNotarizationNotice(apps: [URL], checks: SignatureChecks) -> String? {
+        let stuck = apps.map(\.path).filter(checks.stuckPaths.contains)
+        guard !stuck.isEmpty else { return nil }
+        return "Notarization check skipped \(pathList(stuck)) because reading never finished."
+    }
+
+    static func developerIDApp(at url: URL, checks: SignatureChecks = SignatureChecks()) -> (path: String, team: String, cdhash: String, isNotarized: Bool)? {
+        guard case .finished(let app) = checks.inspect(url, { developerIDDetails(of: $0, at: url) }) else { return nil }
+        return app
+    }
+
+    static func developerIDDetails(of staticCode: SecStaticCode, at url: URL) -> (path: String, team: String, cdhash: String, isNotarized: Bool)? {
         var developerID: SecRequirement?
         var notarized: SecRequirement?
         let offline = SecCSFlags(rawValue: kSecCSBasicValidateOnly).union(.noNetworkAccess)
         guard
-            SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess, let staticCode,
             SecRequirementCreateWithString(developerIDRequirement as CFString, [], &developerID) == errSecSuccess, let developerID,
             SecRequirementCreateWithString(notarizedRequirement as CFString, [], &notarized) == errSecSuccess, let notarized,
             SecStaticCodeCheckValidity(staticCode, offline, developerID) == errSecSuccess
@@ -252,8 +270,8 @@ public struct Scanner: Sendable {
         }
     }
 
-    static func notarizationFindings(_ rules: [Rule], apps: [(path: String, team: String, cdhash: String, isNotarized: Bool)], cache: inout NotarizationCache, assess: (String) -> Bool?) -> (findings: [Finding], notice: String?) {
-        cache.keep(paths: Set(apps.map(\.path)))
+    static func notarizationFindings(_ rules: [Rule], apps: [(path: String, team: String, cdhash: String, isNotarized: Bool)], unchecked: Set<String> = [], cache: inout NotarizationCache, assess: (String) -> Bool?) -> (findings: [Finding], notice: String?) {
+        cache.keep(paths: unchecked.union(apps.map(\.path)))
         let unconfirmed = apps.filter { !$0.isNotarized }.sorted { $0.path < $1.path }
         let pending = unconfirmed.filter { cache.isNotarized(path: $0.path, cdhash: $0.cdhash) == nil }
         for app in pending.shuffled().prefix(maxNotarizationAssessments) {
@@ -550,35 +568,43 @@ public struct Scanner: Sendable {
         }
     }
 
-    static func chromiumExtensions(browser: String, root: String) -> [(descriptor: String, detail: String, path: String)] {
+    static func chromiumExtensions(browser: String, root: String) -> (extensions: [(descriptor: String, detail: String, path: String)], oversized: [String]) {
         let fileManager = FileManager.default
         let profiles = (try? fileManager.contentsOfDirectory(atPath: root)) ?? []
-        return profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
+        var oversized: [String] = []
+        let extensions = profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
             let extensionsRoot = "\(root)/\(profile)/Extensions"
             let ids = (try? fileManager.contentsOfDirectory(atPath: extensionsRoot)) ?? []
             return ids.compactMap { id in
                 let versions = ((try? fileManager.contentsOfDirectory(atPath: "\(extensionsRoot)/\(id)")) ?? []).filter { !$0.hasPrefix(".") }
-                guard
-                    let version = versions.max(by: { $0.compare($1, options: .numeric) == .orderedAscending }),
-                    let data = RegularFile.read(atPath: "\(extensionsRoot)/\(id)/\(version)/manifest.json", maxBytes: maxReadBytes, followingSymlinks: true),
-                    let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-                else { return nil }
+                guard let version = versions.max(by: { $0.compare($1, options: .numeric) == .orderedAscending }) else { return nil }
                 let directory = "\(extensionsRoot)/\(id)/\(version)"
+                guard let file = RegularFile.readStart(atPath: "\(directory)/manifest.json", maxBytes: maxReadBytes, followingSymlinks: true) else { return nil }
+                guard file.size <= maxReadBytes else {
+                    oversized.append("\(directory)/manifest.json")
+                    return nil
+                }
+                guard let manifest = (try? JSONSerialization.jsonObject(with: file.data)) as? [String: Any] else { return nil }
                 let name = localizedName(manifest["name"] as? String ?? id, manifest: manifest, directory: directory)
                 let permissions = ["permissions", "host_permissions", "optional_permissions"].flatMap { (manifest[$0] as? [Any] ?? []).compactMap { $0 as? String } }
                 let update = manifest["update_url"] as? String ?? "none"
                 return extensionRecord(browser: browser, id: id, name: name, update: update, permissions: permissions, path: directory)
             }
         }
+        return (extensions, oversized)
     }
 
-    static func firefoxExtensions(profilesRoot: String) -> [(descriptor: String, detail: String, path: String)] {
+    static func firefoxExtensions(profilesRoot: String) -> (extensions: [(descriptor: String, detail: String, path: String)], oversized: [String]) {
         let profiles = (try? FileManager.default.contentsOfDirectory(atPath: profilesRoot)) ?? []
-        return profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
-            guard
-                let data = RegularFile.read(atPath: "\(profilesRoot)/\(profile)/extensions.json", maxBytes: maxExtensionIndexBytes, followingSymlinks: true),
-                let addons = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["addons"] as? [[String: Any]]
-            else { return [] }
+        var oversized: [String] = []
+        let extensions = profiles.flatMap { profile -> [(descriptor: String, detail: String, path: String)] in
+            let index = "\(profilesRoot)/\(profile)/extensions.json"
+            guard let file = RegularFile.readStart(atPath: index, maxBytes: maxExtensionIndexBytes, followingSymlinks: true) else { return [] }
+            guard file.size <= maxExtensionIndexBytes else {
+                oversized.append(index)
+                return []
+            }
+            guard let addons = ((try? JSONSerialization.jsonObject(with: file.data)) as? [String: Any])?["addons"] as? [[String: Any]] else { return [] }
             return addons.compactMap { addon in
                 guard let id = addon["id"] as? String, let location = addon["location"] as? String, location == "app-profile" else { return nil }
                 let name = (addon["defaultLocale"] as? [String: Any])?["name"] as? String ?? id
@@ -588,6 +614,7 @@ public struct Scanner: Sendable {
                 return extensionRecord(browser: "Firefox", id: id, name: name, update: isSigned ? "addons.mozilla.org" : "none", permissions: permissions, path: addon["path"] as? String ?? "\(profilesRoot)/\(profile)")
             }
         }
+        return (extensions, oversized)
     }
 
     static func extensionRecord(browser: String, id: String, name: String, update: String, permissions: [String], path: String) -> (descriptor: String, detail: String, path: String) {
@@ -614,9 +641,15 @@ public struct Scanner: Sendable {
         return message
     }
 
-    static func signatureProblem(at url: URL) -> String? {
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+    static func signatureProblem(at url: URL, checks: SignatureChecks = SignatureChecks()) -> String? {
+        switch checks.inspect(url, signatureProblem(of:)) {
+        case .finished(let problem): problem
+        case .stuck: unfinishedSignatureProblem
+        case .skipped: nil
+        }
+    }
+
+    static func signatureProblem(of staticCode: SecStaticCode) -> String? {
         let validity = SecStaticCodeCheckValidity(staticCode, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil)
         if validity == errSecCSUnsigned { return "is not signed" }
         var information: CFDictionary?
@@ -654,6 +687,85 @@ public struct Scanner: Sendable {
         }
     }
 
+    static func launchItemFindings(_ rules: [Rule], items: [(path: String, program: String?, command: String)]) -> (findings: [Finding], notice: String?) {
+        let findings = rules.flatMap { rule in
+            let regexes = regexes(rule.patterns)
+            return items.filter { matches(regexes, $0.command) || matches(regexes, $0.path) }.map {
+                Finding(rule: rule, detail: $0.command, path: $0.path)
+            }
+        }
+        return (findings, longLinesNotice("Launch item check", locations: items.filter { isLongerThanMatched($0.command) }.map(\.path)))
+    }
+
+    static func shellProfileFindings(_ rules: [Rule], files: [String]) -> (findings: [Finding], notices: [String]) {
+        let read = readStarts(of: files, check: "Shell profile check")
+        let profiles = read.files.map { (path: $0.path, lines: lines(of: $0.text)) }
+        let findings = rules.flatMap { rule in
+            let regexes = regexes(rule.patterns)
+            return profiles.flatMap { profile in
+                profile.lines.filter { matches(regexes, $0) }.map {
+                    Finding(rule: rule, detail: $0, path: profile.path)
+                }
+            }
+        }
+        return (findings, read.notices)
+    }
+
+    static func sshKeyFindings(_ rules: [Rule], files: [String]) -> (findings: [Finding], notices: [String]) {
+        let read = readStarts(of: files, check: "SSH key check")
+        let keys = read.files.flatMap { file in
+            authorizedKeys(in: file.text).map { (file: file.path, key: $0) }
+        }
+        let findings = rules.flatMap { rule in
+            let regexes = regexes(rule.patterns)
+            return keys.filter { rule.patterns == nil || matches(regexes, $0.key.line) }.map {
+                Finding(rule: rule, detail: $0.key.summary, path: $0.file)
+            }
+        }
+        return (findings, read.notices)
+    }
+
+    static func crontabFindings(_ rules: [Rule], lines: [String]) -> (findings: [Finding], notice: String?) {
+        (matchingLines(lines, rules: rules), lines.contains(where: isLongerThanMatched) ? longLinesNotice("Crontab check", locations: ["the crontab"]) : nil)
+    }
+
+    static func readStarts(of files: [String], check: String) -> (files: [(path: String, text: String)], notices: [String]) {
+        var cut: [String] = []
+        let read = files.compactMap { path -> (path: String, text: String)? in
+            guard let file = RegularFile.readStart(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true) else { return nil }
+            if file.size > maxReadBytes { cut.append(path) }
+            return (path, String(decoding: file.data, as: UTF8.self))
+        }
+        let cutNotice = cut.isEmpty ? nil : "\(check) read only the first \(Int64(maxReadBytes).formatted(.byteCount(style: .decimal))) of \(pathList(cut))."
+        let withLongLines = read.filter { lines(of: $0.text).contains(where: isLongerThanMatched) }.map(\.path)
+        return (read, [cutNotice, longLinesNotice(check, locations: withLongLines)].compactMap { $0 })
+    }
+
+    static func isLongerThanMatched(_ text: String) -> Bool {
+        text.utf16.count > maxMatchedLength
+    }
+
+    static func longLinesNotice(_ check: String, locations: [String]) -> String? {
+        guard !locations.isEmpty else { return nil }
+        return "\(check) matched only the first \(maxMatchedLength.formatted()) characters of very long lines in \(pathList(locations))."
+    }
+
+    static func oversizedFilesNotice(_ check: String, paths: [String]) -> String? {
+        guard !paths.isEmpty else { return nil }
+        return "\(check) skipped files too large to read: \(pathList(paths))."
+    }
+
+    static func pathList(_ paths: [String]) -> String {
+        let named = paths.sorted().prefix(maxNoticePaths).map { Finding.clip(Finding.displayable(NSString(string: $0).abbreviatingWithTildeInPath)) }
+        let others = paths.count - named.count
+        return named.joined(separator: ", ") + (others > 0 ? " and \(others.formatted()) more" : "")
+    }
+
+    static func withoutRepeats(_ notices: [String]) -> [String] {
+        var seen = Set<String>()
+        return notices.filter { seen.insert($0).inserted }
+    }
+
     static func expand(_ path: String) -> String {
         NSString(string: path).expandingTildeInPath
     }
@@ -676,7 +788,7 @@ public struct Scanner: Sendable {
         String(decoding: RegularFile.read(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true) ?? Data(), as: UTF8.self)
     }
 
-    static func runTool(_ executable: String, _ arguments: [String], includingErrorOutput: Bool = false, timeout: TimeInterval? = nil) -> String {
+    static func runTool(_ executable: String, _ arguments: [String], includingErrorOutput: Bool = false, timeout: TimeInterval = toolTimeout) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -688,30 +800,44 @@ public struct Scanner: Sendable {
         } catch {
             return ""
         }
-        let termination = DispatchWorkItem { process.terminate() }
-        if let timeout { DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: termination) }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        termination.cancel()
-        guard timeout == nil || process.terminationReason == .exit else { return "" }
-        return String(decoding: data, as: UTF8.self)
+        let finished = DispatchSemaphore(value: 0)
+        let data = Mutex(Data())
+        Thread.detachNewThread {
+            let read = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            data.withLock { $0 = read }
+            finished.signal()
+        }
+        guard finished.wait(timeout: .now() + timeout) == .success else {
+            process.terminate()
+            if finished.wait(timeout: .now() + toolKillDelay) == .timedOut, process.isRunning {
+                kill(process.processIdentifier, SIGKILL)
+            }
+            return ""
+        }
+        guard process.terminationReason == .exit else { return "" }
+        return String(decoding: data.withLock { $0 }, as: UTF8.self)
     }
 
-    static func launchItemCommands() -> [(path: String, program: String?, command: String)] {
-        launchItemDirectories.map(expand).flatMap { directory -> [(path: String, program: String?, command: String)] in
+    static func launchItemCommands(in directories: [String]) -> (items: [(path: String, program: String?, command: String)], notice: String?) {
+        var oversized: [String] = []
+        let items = directories.flatMap { directory -> [(path: String, program: String?, command: String)] in
             let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
             return names.filter { $0.hasSuffix(".plist") }.compactMap { name in
                 let path = directory + "/" + name
-                guard
-                    let data = RegularFile.read(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true),
-                    let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-                else { return nil }
+                guard let file = RegularFile.readStart(atPath: path, maxBytes: maxReadBytes, followingSymlinks: true) else { return nil }
+                guard file.size <= maxReadBytes else {
+                    oversized.append(path)
+                    return nil
+                }
+                guard let plist = try? PropertyListSerialization.propertyList(from: file.data, format: nil) as? [String: Any] else { return nil }
                 let program = plist["Program"] as? String
                 let arguments = plist["ProgramArguments"] as? [String] ?? []
                 let command = ([program].compactMap { $0 } + arguments).joined(separator: " ")
                 return command.isEmpty ? nil : (path, program ?? arguments.first, command)
             }
         }
+        return (items, oversizedFilesNotice("Launch item check", paths: oversized))
     }
 
     static func listeningPorts() -> [Int: String] {

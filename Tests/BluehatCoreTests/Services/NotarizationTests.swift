@@ -147,6 +147,18 @@ struct NotarizationTests {
         #expect(cache.verdicts.isEmpty)
     }
 
+    @Test func keepsTheCachedVerdictOfAnAppThatCouldNotBeChecked() {
+        var cache = NotarizationCache(fileURL: cacheURL)
+        cache.record(false, path: "/Applications/Stuck.app", cdhash: "aa11")
+        var assessed: [String] = []
+        _ = Scanner.notarizationFindings([Self.rule()], apps: [], unchecked: ["/Applications/Stuck.app"], cache: &cache) { path in
+            assessed.append(path)
+            return false
+        }
+        #expect(assessed.isEmpty)
+        #expect(cache.isNotarized(path: "/Applications/Stuck.app", cdhash: "aa11") == false)
+    }
+
     @Test func notarizationRuleNeedsNoFields() throws {
         let data = Data(#"{"schema": 1, "version": 1, "rules": [{"id": "app.unnotarized", "title": "Test", "severity": "low", "category": "hardening", "check": "notarization"}]}"#.utf8)
         #expect(try Rulebook.decode(from: data).rules.first?.check == .notarization)
@@ -163,5 +175,40 @@ struct NotarizationTests {
         #expect(Scanner.runTool("/bin/sh", ["-c", "echo verdict >&2"], includingErrorOutput: true) == "verdict\n")
         #expect(Scanner.runTool("/bin/sh", ["-c", "echo verdict >&2"]).isEmpty)
         #expect(Scanner.runTool("/bin/sh", ["-c", "echo done"], timeout: 5) == "done\n")
+    }
+
+    @Test func runToolKeepsTheOutputOfAFailingExitStatus() {
+        #expect(Scanner.runTool("/bin/sh", ["-c", "echo rejected; exit 3"]) == "rejected\n")
+    }
+
+    @Test func runToolReturnsNothingWhenTheToolIsKilled() {
+        #expect(Scanner.runTool("/bin/sh", ["-c", "echo partial; kill -KILL $$"]).isEmpty)
+    }
+
+    @Test func runToolDropsOutputOfAToolThatExitsCleanlyOnTermination() {
+        #expect(Scanner.runTool("/bin/sh", ["-c", "trap 'exit 0' TERM; echo partial; while :; do sleep 0.05; done"], timeout: 0.3).isEmpty)
+    }
+
+    @Test func runToolGivesUpOnAToolThatIgnoresTermination() throws {
+        let pidFile = FileManager.default.temporaryDirectory.appending(path: "bluehat-tool-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: pidFile) }
+        let clock = ContinuousClock()
+        let start = clock.now
+        #expect(Scanner.runTool("/bin/sh", ["-c", "trap '' TERM; echo $$ > '\(pidFile.path)'; echo partial; sleep 8; :"], timeout: 0.5).isEmpty)
+        #expect(clock.now - start < .seconds(5))
+        let pid = try #require(pid_t(try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        var isGone = false
+        for _ in 0..<100 where !isGone {
+            isGone = kill(pid, 0) != 0
+            if !isGone { usleep(50_000) }
+        }
+        #expect(isGone)
+    }
+
+    @Test func runToolGivesUpWhenAChildKeepsTheOutputOpen() {
+        let clock = ContinuousClock()
+        let start = clock.now
+        #expect(Scanner.runTool("/bin/sh", ["-c", "sleep 8 & exit 0"], timeout: 0.2).isEmpty)
+        #expect(clock.now - start < .seconds(5))
     }
 }

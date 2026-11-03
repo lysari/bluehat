@@ -18,7 +18,7 @@ struct BrowserExtensionTests {
         try write(#"{"name": "__MSG_appName__", "default_locale": "en", "update_url": "https://evil.example/update.xml", "permissions": ["cookies"], "host_permissions": ["<all_urls>"]}"#, to: "Default/Extensions/\(id)/1.10_0/manifest.json")
         try write(#"{"appName": {"message": "PDF Helper"}}"#, to: "Default/Extensions/\(id)/1.10_0/_locales/en/messages.json")
 
-        let extensions = Scanner.chromiumExtensions(browser: "Chrome", root: root.path)
+        let extensions = Scanner.chromiumExtensions(browser: "Chrome", root: root.path).extensions
 
         #expect(extensions.count == 1)
         #expect(extensions.first?.detail == "Chrome: PDF Helper (\(id))")
@@ -36,7 +36,7 @@ struct BrowserExtensionTests {
         ]}
         """#, to: "abc.default-release/extensions.json")
 
-        let extensions = Scanner.firefoxExtensions(profilesRoot: root.path)
+        let extensions = Scanner.firefoxExtensions(profilesRoot: root.path).extensions
 
         #expect(extensions.map(\.detail) == ["Firefox: Helper (helper@evil.example)", "Firefox: uBlock Origin (uBlock0@raymondhill.net)"])
         #expect(extensions.first?.descriptor == "browser=Firefox id=helper@evil.example name=Helper update=none permissions=proxy,<all_urls>")
@@ -80,7 +80,7 @@ struct BrowserExtensionTests {
     }
 
     @Test func missingBrowsersGiveNoExtensions() {
-        #expect(Scanner.chromiumExtensions(browser: "Chrome", root: root.path).isEmpty)
-        #expect(Scanner.firefoxExtensions(profilesRoot: root.path).isEmpty)
+        #expect(Scanner.chromiumExtensions(browser: "Chrome", root: root.path).extensions.isEmpty)
+        #expect(Scanner.firefoxExtensions(profilesRoot: root.path).extensions.isEmpty)
     }
 }

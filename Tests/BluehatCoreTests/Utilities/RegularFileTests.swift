@@ -61,6 +61,35 @@ struct RegularFileTests {
         #expect(RegularFile.read(atPath: directory.path, maxBytes: 10, followingSymlinks: false) == nil)
     }
 
+    @Test func readsTheStartOfAFileWithItsFullSize() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appending(path: "long").path
+        try Data("abcdef".utf8).write(to: URL(fileURLWithPath: path))
+        let file = RegularFile.readStart(atPath: path, maxBytes: 2, followingSymlinks: false)
+        #expect(file?.data == Data("ab".utf8))
+        #expect(file?.size == 6)
+        #expect(RegularFile.readStart(atPath: directory.path, maxBytes: 2, followingSymlinks: false) == nil)
+    }
+
+    @Test func readingTheStartOfASparseFileReadsOnlyThatMuch() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appending(path: "huge").path
+        #expect(FileManager.default.createFile(atPath: path, contents: nil))
+        #expect(truncate(path, 8 << 30) == 0)
+        let clock = ContinuousClock()
+        let elapsed = clock.measure {
+            #expect(RegularFile.readStart(atPath: path, maxBytes: Scanner.maxReadBytes, followingSymlinks: true)?.data.count == Scanner.maxReadBytes)
+        }
+        #expect(elapsed < .seconds(1))
+    }
+
+    @Test func aFifoHasNoStartToRead() throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fifo = directory.appending(path: "pipe").path
+        #expect(mkfifo(fifo, 0o600) == 0)
+        #expect(RegularFile.readStart(atPath: fifo, maxBytes: 10, followingSymlinks: true) == nil)
+    }
+
     @Test func symlinksAreFollowedOnlyWhenAsked() throws {
         defer { try? FileManager.default.removeItem(at: directory) }
         let target = directory.appending(path: "target").path
@@ -69,5 +98,7 @@ struct RegularFileTests {
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target)
         #expect(RegularFile.read(atPath: link, maxBytes: 10, followingSymlinks: true) == Data("abc".utf8))
         #expect(RegularFile.read(atPath: link, maxBytes: 10, followingSymlinks: false) == nil)
+        #expect(RegularFile.readStart(atPath: link, maxBytes: 10, followingSymlinks: true)?.data == Data("abc".utf8))
+        #expect(RegularFile.readStart(atPath: link, maxBytes: 10, followingSymlinks: false) == nil)
     }
 }

@@ -12,8 +12,8 @@
 Sources/
 ├── BluehatCore/                 # library: rule model, signed feed, scan engine
 │   ├── Models/                  # Rule, Rulebook, MalwareFeed, EntryChanges (update comparison), AppRelease (the GitHub release of the app), NpmPackage, RemoteHost, Connection, Finding, IgnoredFinding, ScanSchedule, ScanRecord, Installation, TerminalCommand
-│   ├── Services/                # RuleFeed (local load, check, review and accept of rules and the malware feed, all verified), AppUpdater (GitHub check, download, update signature), AppInstaller (mount, inspect, atomic replace, rollback), Scanner (checks), ProjectFolders (project discovery), NpmInventory (lockfile and node_modules reading), ScanHistory (saved scans), NotarizationCache (saved Gatekeeper verdicts)
-│   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads)
+│   ├── Services/                # RuleFeed (local load, check, review and accept of rules and the malware feed, all verified), AppUpdater (GitHub check, download, update signature), AppInstaller (mount, inspect, atomic replace, rollback), Scanner (checks), SignatureChecks (runs each code-signing call on a scanned path on its own thread under a time limit, tolerates a limited number of stuck paths per scan), ProjectFolders (project discovery), NpmInventory (lockfile and node_modules reading), ScanHistory (saved scans), NotarizationCache (saved Gatekeeper verdicts)
+│   └── Utilities/               # shared helpers with doc comments: RegularFile (safe capped file reads, whole or just the start)
 ├── Bluehat/                     # menu bar app: BluehatApp (scenes), AppDelegate (owns ScanStore, starts the menu bar)
 │   ├── MenuBar/                 # AppKit glue: MenuBarController (status item, panel level), MenuBarPanel (floating NSPanel hosting ScanPanel)
 │   ├── Views/                   # one SwiftUI view per file; <Type>+Presentation.swift for display text of core types
@@ -46,7 +46,9 @@ LICENSE                          # MIT
 - Checking for, verifying and installing app updates: `AppUpdater`, `AppInstaller` (only the buttons in `AppUpdateSection` reach them, through `AppUpdateReview`; the update key in `AppUpdater.trustedKeys` never doubles as a rules key)
 - Running system tools and matching text: `Scanner.runTool`, `Scanner.regexes`, `Scanner.matches`
 - Finding projects in the user's project folders: `ProjectFolders.directories(in:containing:)`
-- Reading any file an attacker can influence: `RegularFile.read` / `RegularFile.open` (never `FileHandle(forReadingAtPath:)`, `FileManager.contents` or `Data(contentsOf:)`)
+- Calling the Security framework on a path a scan found: `SignatureChecks.inspect` (never `SecStaticCodeCreateWithPath` directly, since it can block forever on a FIFO)
+- Naming paths in a scan notice: `Scanner.pathList` (tilde, displayable, clipped, at most `maxNoticePaths` names)
+- Reading any file an attacker can influence: `RegularFile.read` / `RegularFile.readStart` / `RegularFile.open` (never `FileHandle(forReadingAtPath:)`, `FileManager.contents` or `Data(contentsOf:)`)
 
 ## UI & Styling Conventions
 - Framework: SwiftUI
