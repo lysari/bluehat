@@ -73,6 +73,12 @@ struct CheckProgressTests {
         #expect(progress(.finished, kind: .deep, finished: Set(areas)).diskWalkStatus == .finished)
     }
 
+    @Test func aStoppedWalkIsNotShownAsFinished() {
+        let stopped = CheckProgress(stage: .finished, kind: .deep, areas: areas, finishedAreas: Set(areas), wasStoppedAtMemoryLimit: true)
+        #expect(stopped.diskWalkStatus == .stoppedEarly)
+        #expect(areas.allSatisfy { stopped.status(of: $0) == .finished })
+    }
+
     @Test func theDiskWalkShowsOnlyForADeepScan() {
         #expect(!progress(.checking).showsDiskWalk)
         #expect(!progress(.finished, finished: Set(areas)).showsDiskWalk)

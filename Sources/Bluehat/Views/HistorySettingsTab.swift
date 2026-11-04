@@ -31,13 +31,16 @@ private struct HistoryRow: View {
     let changes: ScanChanges
 
     private var tint: Color {
-        record.issues.map(\.severity).max().map(Palette.severity) ?? Palette.safe
+        record.issues.map(\.severity).max().map(Palette.severity) ?? (record.wasStoppedAtMemoryLimit ? Palette.notice : Palette.safe)
     }
 
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
-                if changes.isEmpty {
+                if record.wasStoppedAtMemoryLimit {
+                    Text("Stopped at the memory limit, so the rest of the disk wasn't checked. Nothing is listed as resolved, and the next Deep Scan compares with the last one that finished.")
+                        .foregroundStyle(Palette.notice)
+                } else if changes.isEmpty {
                     Text("Nothing changed since the scan before.")
                         .foregroundStyle(Palette.secondaryText)
                 }
@@ -52,7 +55,7 @@ private struct HistoryRow: View {
             .padding(.vertical, Metrics.spaceSmall)
         } label: {
             HStack(spacing: Metrics.spaceMedium) {
-                Image(systemName: record.issues.isEmpty ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                Image(systemName: record.issues.isEmpty && !record.wasStoppedAtMemoryLimit ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                     .foregroundStyle(tint)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Metrics.spaceTight) {
@@ -74,11 +77,11 @@ private struct HistoryRow: View {
     private var details: String {
         let rules = "Rules v\(String(record.rulesVersion))"
         guard record.kind == .deep else { return "\(rules) · \(record.duration.formatted(.number.precision(.fractionLength(1))))s" }
-        return "Deep Scan · \(rules) · \(Duration.seconds(record.duration).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow, maximumUnitCount: 2)))"
+        return "\(record.wasStoppedAtMemoryLimit ? "Deep Scan stopped early" : "Deep Scan") · \(rules) · \(Duration.seconds(record.duration).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow, maximumUnitCount: 2)))"
     }
 
     private var summary: String {
-        var parts = [record.issues.isEmpty ? "No issues" : counted(record.issues.count, "issue")]
+        var parts = [record.issues.isEmpty ? (record.wasStoppedAtMemoryLimit ? "No issues so far" : "No issues") : counted(record.issues.count, "issue")]
         if !changes.new.isEmpty { parts.append("\(changes.new.count) new") }
         if !changes.resolved.isEmpty { parts.append("\(changes.resolved.count) resolved") }
         return parts.joined(separator: " · ")

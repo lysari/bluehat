@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/hero.png" width="760" alt="Bluehat panel after a scan: the scan ring with 6 issues, the 20 check areas, and a findings list with a shell startup line, a vulnerable Python, a hijacked chalk release and code hidden in tailwind.config.js">
+  <img src="assets/readme/hero.png" width="760" alt="Bluehat panel after a scan with example data: the scan ring with 6 issues, the blue Scan Again and indigo Deep Scan button, the 20 check areas, the signed rules line, and Findings and Not Scanned tabs with search and filter above a findings list with a shell startup line, a vulnerable Python, a hijacked chalk release and code hidden in tailwind.config.js">
 </p>
 
 ---
@@ -89,9 +89,9 @@ run anything.
 | 🧭 **Live checks grid** | During a scan a spinner marks the check running now, and a Deep Scan adds a Disk walk row with its live count. Click any check, at any time, for what it looks for, where it looks, what a finding means, and whether it reads file contents or reaches the internet. |
 | 🔍 **Finding details** | What was found, why it matters, how to fix it, and source links for every finding. |
 | 🗂️ **Findings list** | One list sorted by severity, or grouped by check area with a count on each group. Choose in Settings › General. A group expands and collapses with a click, and every group opens again on each new scan result, so a new threat is never hidden. Each group's **⋯** menu offers **Copy Fix Steps**, **Ignore All** and, for Software versions, **Move All to Trash**. There is no Fix All, on purpose. Search as you type and a filter menu narrow the list by severity and check type; a group's actions then act only on the findings shown, and say how many. |
-| 🚧 **Not Scanned** | A tab beside the findings lists what a scan knows it didn't check: folders it couldn't open, files over a limit, cloud-only files, launch items it couldn't parse, checks that timed out and more, grouped by a plain reason with your home folder first, each with Show in Finder. A calm line in the status card opens it, and "Your Mac looks safe" stays as it is. The list covers the latest scan and isn't saved. |
+| 🚧 **Not Scanned** | A tab beside the findings lists what a scan knows it didn't check: folders it couldn't open, files over a limit, cloud-only files, launch items it couldn't parse, checks that timed out and more, grouped by a plain reason with your home folder first, each with Show in Finder. A calm line in the status card opens it, and "Your Mac looks safe" stays as it is, unless a Deep Scan stopped at its memory limit. The list covers the latest scan and isn't saved. |
 | ✅ **Signed rules you review** | Hand-written rules and a malware fingerprint feed ship inside the app and are verified with Ed25519 every time they load. Settings › Rules checks for updates when you click, compares them with your local copy, and changes nothing until you accept. |
-| 🔬 **Deep Scan** | **Deep Scan…**, the right half of the Scan Now button in the panel, runs the normal scan after a confirmation, then looks for npm packages and project config files across the startup disk. It decides from file names alone and opens only `package.json`, `*.config.js`, `*.config.json`, `*.config.ts`, `*.config.mjs`, `*.config.cjs`, `*.config.cts`, `*.config.mts`, npm, Yarn and pnpm lockfiles, and the exact file names the rules list. It runs one file at a time at background priority, shows its progress and can be cancelled with the red **Cancel** that replaces **Deep Scan…** while it runs, and it never crosses into other volumes or follows symlinks. Afterwards the Not Scanned tab says how many folders it read, how many package files it opened and how many folders it couldn't read, and lists them. A clean result doesn't mean there is no malware anywhere on the Mac: programs outside the normal scan's folders aren't checked. Settings › General lists the folders it skips and takes `.gitignore`-style patterns such as `node_modules`, `*.log` and `~/Library/Caches`. |
+| 🔬 **Deep Scan** | **Deep Scan…**, the right half of the Scan Now button in the panel, runs the normal scan after a confirmation, then looks for npm packages and project config files across the startup disk. It decides from file names alone and opens only `package.json`, `*.config.js`, `*.config.json`, `*.config.ts`, `*.config.mjs`, `*.config.cjs`, `*.config.cts`, `*.config.mts`, npm, Yarn and pnpm lockfiles, and the exact file names the rules list. It runs one file at a time at background priority, shows its progress and can be cancelled with the red **Cancel** that replaces **Deep Scan…** while it runs, and it never crosses into other volumes or follows symlinks. Afterwards the Not Scanned tab says how many folders it read, how many package files it opened and how many folders it couldn't read, and lists them. If the app's memory reaches the Deep Scan memory limit in Settings › Limits while it walks, the walk stops, keeps what it found, and the panel says it stopped early and how many folders it read, instead of "Your Mac looks safe". A clean result doesn't mean there is no malware anywhere on the Mac: programs outside the normal scan's folders aren't checked. Settings › General lists the folders it skips and takes `.gitignore`-style patterns such as `node_modules`, `*.log` and `~/Library/Caches`. |
 | 🕒 **Scheduled scans** | Every 1, 6, 12 or 24 hours, or once at a date and time you choose, with a notification only for issues that weren't there before. A missed custom scan runs as soon as the Mac wakes or Bluehat opens, and the schedule then turns off. |
 | 🎚️ **Adjustable limits** | Settings › Limits lists every limit on what a scan reads, counts, waits for or keeps, such as the largest `package.json` it opens, with what raising or lowering costs. Reset one or all to the defaults. A change applies to the next scan. |
 | 🙈 **Ignore list** | Hide one exact finding, or a whole group of exact findings after a warning; review and undo them in Settings › Ignored, grouped by check area, one at a time or with **Remove All** for a group. New findings of the same type still appear. |
@@ -103,18 +103,20 @@ run anything.
 
 <table>
   <tr>
-    <td align="center"><img src="assets/readme/clean.png" width="220" alt="Panel showing Your Mac looks safe with every check area green"><br><sub><b>A clean scan</b></sub></td>
+    <td align="center"><img src="assets/readme/clean.png" width="220" alt="Panel showing Your Mac looks safe with all 20 check areas green and the Scan Again and Deep Scan button"><br><sub><b>A clean scan</b></sub></td>
     <td align="center"><img src="assets/readme/finding-update.png" width="220" alt="Finding detail for a vulnerable Python with Update and Move to Trash buttons"><br><sub><b>Update or remove a vulnerable install</b></sub></td>
-    <td align="center"><img src="assets/readme/finding-project.png" width="220" alt="Finding detail for code hidden in tailwind.config.js"><br><sub><b>Hidden code in a project config</b></sub></td>
+    <td align="center"><img src="assets/readme/finding-project.png" width="220" alt="Finding detail for a config file that runs decoded code, in tailwind.config.js"><br><sub><b>Hidden code in a project config</b></sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="assets/readme/settings-projects.png" width="260" alt="Settings, Projects tab with the folders Bluehat reads"><br><sub><b>You choose the project folders</b></sub></td>
-    <td align="center"><img src="assets/readme/settings-history.png" width="260" alt="Settings, History tab listing recent scans"><br><sub><b>Scan history</b></sub></td>
+    <td align="center"><img src="assets/readme/settings-projects.png" width="260" alt="Content of the Settings Projects tab, without the window's tab bar, with example folders Bluehat reads"><br><sub><b>You choose the project folders</b> (tab content only)</sub></td>
+    <td align="center"><img src="assets/readme/settings-history.png" width="260" alt="Content of the Settings History tab, without the window's tab bar, listing example scans including a Deep Scan"><br><sub><b>Scan history</b> (tab content only)</sub></td>
   </tr>
 </table>
 
-The findings in these screenshots come from harmless test files in a demo home
-folder, not from a real infection.
+These images and the panel at the top of this page are offscreen renders of the
+app's real views with invented example data, not captures of a real scan or a
+real infection. The real panel is translucent over your desktop, where these show
+a plain dark background, and the Settings images leave out the window's tab bar.
 
 ## Privacy and safety
 
@@ -186,7 +188,9 @@ folder, not from a real infection.
   abandoned at a time limit and listed too. A JSON file built to crash a parser
   with extreme nesting is refused before parsing and listed, so it can't stop a
   scan. A Deep Scan keeps these guards, and
-  it skips a package file over its limit and lists it. You can adjust each
+  it skips a package file over its limit and lists it. It also watches the app's
+  own memory during its walk and stops at the Deep Scan memory limit, keeping
+  what it found and saying what it didn't check. You can adjust each
   limit in Settings › Limits, but only within a fixed range, so no value can
   turn a check off or let a scan run without a limit. Any scan with a changed
   limit names it in its notice, so a change made by malware or forgotten by
@@ -330,7 +334,7 @@ flowchart LR
 | [`Sources/Bluehat/Theme/`](Sources/Bluehat/Theme) | Design tokens: colours, spacing, fonts, motion |
 | [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, the Not Scanned list, search and filter, installs, scan records, scan limits |
 | [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `SignatureChecks` (time limits on code-signing calls), `ProjectFolders`, `VolumeWalk` (the startup disk walk of a Deep Scan), `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
-| [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader, `ScanCancellation` and `ProtectedLocation`, which refuses system paths for Move All to Trash |
+| [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader, `ProcessMemory`, which reads the app's memory footprint for the Deep Scan memory limit, `ScanCancellation` and `ProtectedLocation`, which refuses system paths for Move All to Trash |
 | [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` and signs app updates |
 | [`Tests/BluehatCoreTests/`](Tests/BluehatCoreTests) | Unit tests, mirroring `Sources/BluehatCore` |
 | [`scripts/`](scripts) | Bundle, install, release, publish and icon scripts |

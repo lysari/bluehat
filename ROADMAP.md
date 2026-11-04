@@ -71,6 +71,7 @@ New check types (each needs an app update; rules then use them):
 - [x] Other volumes, `/dev` and external drives included, no longer count as Not Scanned: a Deep Scan stays on the startup disk by design, and the tab says so once in its summary
 - [x] A launch item plist that can't be parsed, or whose top level isn't a dictionary, is listed under Not Scanned as Could not parse, with no finding
 - [x] App signing and Launch signing validate with no network, giving up online certificate revocation lookups, whose answer never produced a finding
+- [x] Deep Scan memory limit in Settings › Limits: the walk checks the app's real memory footprint and stops at the limit, keeps its findings and the normal stage's, says it stopped early in the panel, under Not Scanned and in history, and never reports what it didn't reach as resolved
 - [ ] `pythonPackage`: malicious PyPI package versions in project lockfiles (`requirements.txt`, `poetry.lock`, `uv.lock`, `Pipfile.lock`) and installed `site-packages`
 - [ ] `cargoPackage`: malicious crates in project `Cargo.lock` files
 - [ ] `goModule`: malicious Go modules in project `go.sum` files

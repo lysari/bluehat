@@ -15,7 +15,7 @@ final class ScanStore {
     }
 
     enum MenuBarState {
-        case ready, scanning(progress: Double), safe, issues(count: Int), failed
+        case ready, scanning(progress: Double), safe, stoppedEarly, issues(count: Int), failed
     }
 
     enum FindingsTab {
@@ -95,7 +95,11 @@ final class ScanStore {
     }
 
     var checkProgress: CheckProgress {
-        CheckProgress(stage: checkStage, kind: scanKind, areas: areas, finishedAreas: finishedAreas)
+        CheckProgress(stage: checkStage, kind: scanKind, areas: areas, finishedAreas: finishedAreas, wasStoppedAtMemoryLimit: wasStoppedAtMemoryLimit)
+    }
+
+    var wasStoppedAtMemoryLimit: Bool {
+        notScanned.coverage?.wasStoppedAtMemoryLimit == true
     }
 
     var currentArea: CheckKind? {
@@ -152,7 +156,9 @@ final class ScanStore {
         switch phase {
         case .idle: return .ready
         case .scanning: return .scanning(progress: progress)
-        case .finished: return issues.isEmpty ? .safe : .issues(count: issues.count)
+        case .finished:
+            guard issues.isEmpty else { return .issues(count: issues.count) }
+            return wasStoppedAtMemoryLimit ? .stoppedEarly : .safe
         }
     }
 
@@ -317,7 +323,7 @@ final class ScanStore {
     }
 
     private func recordScan(rulesVersion: Int, limits: ScanLimits, notify: Bool) {
-        let record = ScanRecord(date: lastScanAt ?? .now, rulesVersion: rulesVersion, duration: scanDuration.map { $0 / .seconds(1) } ?? 0, findings: visibleFindings, kind: scanKind)
+        let record = ScanRecord(date: lastScanAt ?? .now, rulesVersion: rulesVersion, duration: scanDuration.map { $0 / .seconds(1) } ?? 0, findings: visibleFindings, kind: scanKind, wasStoppedAtMemoryLimit: wasStoppedAtMemoryLimit)
         do {
             try history.append(record, limits: limits)
         } catch {

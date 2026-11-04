@@ -13,7 +13,7 @@ extension ScanStore.MenuBarState {
             case .ready: break
             case .scanning(let progress): Self.cutRing(around: face, progress: progress)
             case .safe: Self.cutMark("checkmark", at: face)
-            case .issues: Self.cutMark("exclamationmark", at: face)
+            case .stoppedEarly, .issues: Self.cutMark("exclamationmark", at: face)
             case .failed: Self.cutMark("xmark", at: face)
             }
             return true
@@ -32,6 +32,7 @@ extension ScanStore.MenuBarState {
         case .ready: "Bluehat, not scanned"
         case .scanning: "Bluehat, scanning"
         case .safe: "Bluehat, no issues"
+        case .stoppedEarly: "Bluehat, Deep Scan stopped early"
         case .issues(let count): "Bluehat, \(counted(count, "issue"))"
         case .failed: "Bluehat, couldn't load rules"
         }

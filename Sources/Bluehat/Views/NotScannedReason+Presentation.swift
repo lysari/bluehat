@@ -3,6 +3,7 @@ import BluehatCore
 extension NotScannedReason {
     var symbol: String {
         switch self {
+        case .memoryLimit: "memorychip"
         case .noPermission: "lock"
         case .couldNotRead: "questionmark.folder"
         case .overSizeLimit: "scalemass"

@@ -8,7 +8,7 @@ struct CheckDetails {
     static let offlineSignature = "No. Bluehat asks macOS to validate the signature without the network, so this check doesn't notice a certificate Apple has revoked."
     static let diskWalk = CheckDetails(
         looksFor: "npm packages and project config files anywhere on your startup disk, with the same rules as npm packages and Project files. It runs last, only in a Deep Scan.",
-        looksIn: "Your startup disk, except folders and patterns you exclude in Settings › General. Other volumes and cloud-only files are skipped.",
+        looksIn: "Your startup disk, except folders and patterns you exclude in Settings › General. Other volumes and cloud-only files are skipped. It stops early at the Deep Scan memory limit in Settings › Limits and says so.",
         findingMeans: "A match that the normal scan's folders didn't cover, which needs the same care. It also counts under npm packages or Project files.",
         fileContents: "Only package files: package.json, lockfiles and config files a rule can use. Everything else is seen by name alone.",
         internet: "No. Cloud-only files aren't downloaded."

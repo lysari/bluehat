@@ -18,10 +18,12 @@ public struct ScanRecord: Codable, Sendable, Identifiable, Equatable {
     public let duration: TimeInterval
     public let entries: [Entry]
     public let kind: ScanKind
+    public let wasStoppedAtMemoryLimit: Bool
 
-    public init(date: Date, rulesVersion: Int, duration: TimeInterval, findings: [Finding], kind: ScanKind = .normal) {
+    public init(date: Date, rulesVersion: Int, duration: TimeInterval, findings: [Finding], kind: ScanKind = .normal, wasStoppedAtMemoryLimit: Bool = false) {
         id = UUID()
         self.kind = kind
+        self.wasStoppedAtMemoryLimit = wasStoppedAtMemoryLimit
         self.date = date
         self.rulesVersion = rulesVersion
         self.duration = duration
@@ -36,6 +38,7 @@ public struct ScanRecord: Codable, Sendable, Identifiable, Equatable {
         duration = try container.decode(TimeInterval.self, forKey: .duration)
         entries = try container.decode([Entry].self, forKey: .entries)
         kind = (try? container.decode(ScanKind.self, forKey: .kind)) ?? .normal
+        wasStoppedAtMemoryLimit = (try? container.decode(Bool.self, forKey: .wasStoppedAtMemoryLimit)) ?? false
     }
 
     public var issues: [Entry] {
@@ -48,7 +51,7 @@ public struct ScanRecord: Codable, Sendable, Identifiable, Equatable {
         let currentIDs = Set(entries.map(\.id))
         return ScanChanges(
             new: entries.filter { !previousIDs.contains($0.id) },
-            resolved: previous.entries.filter { !currentIDs.contains($0.id) }
+            resolved: wasStoppedAtMemoryLimit ? [] : previous.entries.filter { !currentIDs.contains($0.id) }
         )
     }
 }

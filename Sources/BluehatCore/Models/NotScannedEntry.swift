@@ -1,7 +1,7 @@
 import Foundation
 
 public enum NotScannedReason: Int, CaseIterable, Sendable, Identifiable {
-    case noPermission, couldNotRead, overSizeLimit, partlyRead, overCountLimit, overDepthLimit, cloudOnly, timedOut, signatureCheckSkipped, gatekeeperNotAsked, filePatternNotOpened, notSafeToParse, couldNotParse
+    case memoryLimit, noPermission, couldNotRead, overSizeLimit, partlyRead, overCountLimit, overDepthLimit, cloudOnly, timedOut, signatureCheckSkipped, gatekeeperNotAsked, filePatternNotOpened, notSafeToParse, couldNotParse
 
     public var id: Self {
         self
@@ -9,6 +9,7 @@ public enum NotScannedReason: Int, CaseIterable, Sendable, Identifiable {
 
     public var title: String {
         switch self {
+        case .memoryLimit: "Stopped at the memory limit"
         case .noPermission: "No permission"
         case .couldNotRead: "Could not read"
         case .overSizeLimit: "Over the size limit"

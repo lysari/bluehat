@@ -1,5 +1,5 @@
 public enum CheckStatus: Sendable, Equatable {
-    case notRun, waiting, running, finished, nothingToCheck
+    case notRun, waiting, running, finished, stoppedEarly, nothingToCheck
 }
 
 public struct CheckProgress: Sendable, Equatable {
@@ -11,12 +11,14 @@ public struct CheckProgress: Sendable, Equatable {
     public let kind: ScanKind
     public let areas: [CheckKind]
     public let finishedAreas: Set<CheckKind>
+    public let wasStoppedAtMemoryLimit: Bool
 
-    public init(stage: Stage, kind: ScanKind, areas: [CheckKind], finishedAreas: Set<CheckKind>) {
+    public init(stage: Stage, kind: ScanKind, areas: [CheckKind], finishedAreas: Set<CheckKind>, wasStoppedAtMemoryLimit: Bool = false) {
         self.stage = stage
         self.kind = kind
         self.areas = areas
         self.finishedAreas = finishedAreas
+        self.wasStoppedAtMemoryLimit = wasStoppedAtMemoryLimit
     }
 
     public var currentArea: CheckKind? {
@@ -37,7 +39,7 @@ public struct CheckProgress: Sendable, Equatable {
         switch stage {
         case .idle: return .notRun
         case .loadingRules, .checking: return .waiting
-        case .finished: return .finished
+        case .finished: return wasStoppedAtMemoryLimit ? .stoppedEarly : .finished
         }
     }
 

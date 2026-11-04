@@ -44,6 +44,7 @@ final class VolumeWalk {
     static let configFileSuffixes = [".config.js", ".config.json", ".config.ts", ".config.mjs", ".config.cjs", ".config.cts", ".config.mts"]
     static let jsonConfigSuffix = ".config.json"
     static let threadStackBytes = 1 << 22
+    static let memoryCheckInterval = 1_024
 
     let roots: [String]
     let excludedFolders: [String]
@@ -54,15 +55,18 @@ final class VolumeWalk {
     private let ruleFileNames: Set<String>
     private let refusedRuleGlobs: [String]
     private let onItemsWalked: @Sendable (Int) -> Void
+    private let memoryFootprint: @Sendable () -> Int?
     let notScanned: NotScannedCollector
     private(set) var foldersRead = 0
     private(set) var unreadableFolders = 0
     private(set) var packageFilesOpened = 0
+    private(set) var wasStoppedAtMemoryLimit = false
+    private var entriesSinceMemoryCheck = 0
     private var keptFindings: [Finding] = []
     private var leftOutFindings = 0
     private var leftOutRules = Set<String>()
 
-    init(roots: [String], excludedFolders: [String] = [], excludedPatterns: [String] = [], ruleFiles: [String] = [], limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation(), notScanned: NotScannedCollector? = nil, onItemsWalked: @escaping @Sendable (Int) -> Void = { _ in }) {
+    init(roots: [String], excludedFolders: [String] = [], excludedPatterns: [String] = [], ruleFiles: [String] = [], limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation(), notScanned: NotScannedCollector? = nil, memoryFootprint: @escaping @Sendable () -> Int? = ProcessMemory.footprintBytes, onItemsWalked: @escaping @Sendable (Int) -> Void = { _ in }) {
         let folders = excludedFolders.compactMap(Self.canonical)
         self.roots = roots.compactMap(Self.canonical)
         self.excludedFolders = folders.filter { $0 != "/" }
@@ -70,6 +74,7 @@ final class VolumeWalk {
         self.limits = limits
         self.cancellation = cancellation
         self.notScanned = notScanned ?? NotScannedCollector(limits: limits)
+        self.memoryFootprint = memoryFootprint
         self.onItemsWalked = onItemsWalked
         hasWholeDiskFolder = folders.contains("/")
         ruleFileNames = Set(ruleFiles.filter { !$0.contains("*") }.map { $0.lowercased() })
@@ -140,7 +145,19 @@ final class VolumeWalk {
         return NpmInventory.projectFileNames.contains(name) || ruleFileNames.contains(name) || Self.configFileSuffixes.contains { name.hasSuffix($0) }
     }
 
+    private var isStopping: Bool {
+        wasStoppedAtMemoryLimit || cancellation.isCancelled
+    }
+
+    private func checkMemory() {
+        entriesSinceMemoryCheck = 0
+        if let footprint = memoryFootprint(), footprint >= limits[.maxDeepScanMemoryBytes] {
+            wasStoppedAtMemoryLimit = true
+        }
+    }
+
     func walk(_ visit: (_ directory: String, _ file: Entry?) -> Void) {
+        checkMemory()
         var visited = Set<DirectoryIdentity>()
         var walkedItems = 0
         let startupDevices = Set(Self.startupRoots.compactMap { Self.status(of: $0)?.st_dev })
@@ -148,7 +165,7 @@ final class VolumeWalk {
             guard let status = Self.status(of: root), status.st_mode & S_IFMT == S_IFDIR, visited.insert(DirectoryIdentity(status)).inserted else { continue }
             let devices = startupDevices.contains(status.st_dev) ? startupDevices : [status.st_dev]
             var pending = [root]
-            while !cancellation.isCancelled, let directory = pending.popLast() {
+            while !isStopping, let directory = pending.popLast() {
                 visit(directory, nil)
                 let items = list(directory) { entry in
                     guard entry.isDirectory else {
@@ -179,7 +196,7 @@ final class VolumeWalk {
         foldersRead += 1
         let parent = excludedPatterns.isEmpty ? [] : ExclusionPattern.components(of: Self.withoutDataVolume(directory + "/"))
         var items = 0
-        while !cancellation.isCancelled, let item = readdir(stream) {
+        while !isStopping, let item = readdir(stream) {
             let length = Int(item.pointee.d_namlen)
             let name = withUnsafeBytes(of: &item.pointee.d_name) { String(decoding: $0.prefix(length), as: UTF8.self) }
             guard name != ".", name != ".." else { continue }
@@ -187,6 +204,8 @@ final class VolumeWalk {
             let type = Int32(item.pointee.d_type)
             guard type == DT_DIR || type == DT_UNKNOWN || isPackageFile(name) else { continue }
             let path = directory == "/" ? "/" + name : directory + "/" + name
+            entriesSinceMemoryCheck += 1
+            if entriesSinceMemoryCheck >= Self.memoryCheckInterval { checkMemory() }
             var status = stat()
             guard lstat(path, &status) == 0 else {
                 let error = errno
@@ -212,12 +231,16 @@ final class VolumeWalk {
                     keep(finding)
                 }
             }
+            checkMemory()
         }
         for glob in refusedRuleGlobs {
             notScanned.add(NotScannedEntry(reason: .filePatternNotOpened, summary: glob, explanation: "Deep Scan doesn't open this file pattern from the rules across the disk. The normal scan still checks it in your project folders.", limits: limits))
         }
-        notScanned.record(NotScannedList.Coverage(foldersRead: foldersRead, packageFilesOpened: packageFilesOpened, unreadableFolders: unreadableFolders, exclusionSummary: exclusionSummary))
-        return (keptFindings, [wholeDiskNotice, leftOutNotice].compactMap { $0 })
+        if wasStoppedAtMemoryLimit {
+            notScanned.add(NotScannedEntry(reason: .memoryLimit, summary: "The rest of the startup disk", explanation: "Deep Scan stopped at its \(memoryLimitText) memory limit after reading \(Self.counted(foldersRead, "folder")), so this wasn't checked", limits: limits))
+        }
+        notScanned.record(NotScannedList.Coverage(foldersRead: foldersRead, packageFilesOpened: packageFilesOpened, unreadableFolders: unreadableFolders, exclusionSummary: exclusionSummary, wasStoppedAtMemoryLimit: wasStoppedAtMemoryLimit))
+        return (keptFindings, [memoryLimitNotice, wholeDiskNotice, leftOutNotice].compactMap { $0 })
     }
 
     func findings(in file: Entry, directory: String, checks: Checks) -> [Finding] {
@@ -280,6 +303,14 @@ final class VolumeWalk {
 
     private var leftOutNotice: String? {
         leftOutFindings == 0 ? nil : "Deep Scan kept the \(limits[.maxFindings].formatted()) most severe matches on the disk and left out \(leftOutFindings.formatted()) more, from \(Scanner.pathList(Array(leftOutRules), limits: limits))."
+    }
+
+    private var memoryLimitText: String {
+        ScanLimit.maxDeepScanMemoryBytes.text(for: limits[.maxDeepScanMemoryBytes])
+    }
+
+    private var memoryLimitNotice: String? {
+        wasStoppedAtMemoryLimit ? "Deep Scan stopped at its \(memoryLimitText) memory limit after reading \(Self.counted(foldersRead, "folder")), so the rest of the disk wasn't checked. To check more, raise Deep Scan memory limit in Settings › Limits or exclude large folders in Settings › General, then scan again." : nil
     }
 
     private static func status(of path: String) -> stat? {

@@ -22,7 +22,7 @@ public struct ScanHistory: Sendable {
 
     public func changes(for record: ScanRecord) -> ScanChanges {
         guard let index = records.firstIndex(where: { $0.id == record.id }) else { return ScanChanges(new: [], resolved: []) }
-        return record.changes(since: records.dropFirst(index + 1).first { $0.kind == record.kind })
+        return record.changes(since: records.dropFirst(index + 1).first { $0.kind == record.kind && !$0.wasStoppedAtMemoryLimit })
     }
 
     public mutating func append(_ record: ScanRecord, limits: ScanLimits = .defaults) throws {

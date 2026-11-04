@@ -310,6 +310,15 @@ public struct ScanLimit: Sendable, Hashable, Identifiable {
         defaultValue: 1_000,
         range: 100...10_000
     )
+    public static let maxDeepScanMemoryBytes = ScanLimit(
+        key: "maxDeepScanMemoryBytes",
+        area: .deepScan,
+        title: "Deep Scan memory limit",
+        help: "How much memory Bluehat may use while a Deep Scan walks the disk. At the limit the walk stops, keeps what it found and says the rest of the disk wasn't checked. Raising lets it finish on a larger disk, with more risk of slowing your Mac. Lowering stops it sooner.",
+        unit: .megabytes,
+        defaultValue: 1_500_000_000,
+        range: 512_000_000...8_000_000_000
+    )
     public static let maxHistoryRecords = ScanLimit(
         key: "maxHistoryRecords",
         area: .history,
@@ -362,7 +371,7 @@ public struct ScanLimit: Sendable, Hashable, Identifiable {
         maxProjectDepth, maxFoldersPerProjectFolder, maxFileNamesPerProjectFolder, maxModuleDepth, maxGlobalPackages,
         signatureOpenTimeout, signatureCheckTimeout, maxStuckPathsPerScan, maxNotarizationAssessments, notarizationTimeout, networkPathTimeout, maxNotarizationCacheBytes,
         toolTimeout, toolKillDelay,
-        maxFindings,
+        maxFindings, maxDeepScanMemoryBytes,
         maxHistoryRecords, maxHistoryFileBytes, maxDetailLength, maxNoticePaths, maxNotScannedEntries,
     ]
 }

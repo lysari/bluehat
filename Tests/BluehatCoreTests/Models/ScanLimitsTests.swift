@@ -28,6 +28,7 @@ struct ScanLimitsTests {
         "toolTimeout": 60,
         "toolKillDelay": 2,
         "maxFindings": 1_000,
+        "maxDeepScanMemoryBytes": 1_500_000_000,
         "maxHistoryRecords": 30,
         "maxHistoryFileBytes": 20_000_000,
         "maxDetailLength": 200,
@@ -37,6 +38,18 @@ struct ScanLimitsTests {
 
     let englishUS = Locale(identifier: "en_US")
     let german = Locale(identifier: "de_DE")
+
+    @Test func theDeepScanMemoryLimitHasItsDefaultAndRange() {
+        let limit = ScanLimit.maxDeepScanMemoryBytes
+        #expect(limit.area == .deepScan)
+        #expect(limit.title == "Deep Scan memory limit")
+        #expect(limit.defaultValue == 1_500_000_000)
+        #expect(limit.range == 512_000_000...8_000_000_000)
+        #expect(ScanLimits.defaults.setting(limit, to: limit.range.lowerBound - 1) == nil)
+        #expect(ScanLimits.defaults.setting(limit, to: limit.range.upperBound + 1) == nil)
+        #expect(ScanLimits.load(saved: [limit.key: limit.range.upperBound + 1]).limits[limit] == limit.defaultValue)
+        #expect(limit.text(for: limit.defaultValue, locale: englishUS) == "1500 MB")
+    }
 
     @Test func defaultsMatchTheOldConstantsExactly() {
         #expect(Dictionary(uniqueKeysWithValues: ScanLimit.all.map { ($0.key, $0.defaultValue) }) == Self.oldConstants)

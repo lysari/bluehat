@@ -19,11 +19,13 @@ public struct NotScannedList: Sendable {
         public let packageFilesOpened: Int
         public let unreadableFolders: Int
         public let exclusionSummary: String?
+        public let wasStoppedAtMemoryLimit: Bool
 
         public var summary: String {
             let covered = ["Read \(Self.counted(foldersRead, "folder"))", "opened \(Self.counted(packageFilesOpened, "package file"))"]
             let unread = unreadableFolders == 0 ? [] : ["\(Self.counted(unreadableFolders, "folder")) couldn't be read"]
-            return (covered + unread).joined(separator: " · ")
+            let counts = (covered + unread).joined(separator: " · ")
+            return wasStoppedAtMemoryLimit ? "Stopped at the memory limit, so the rest of the disk wasn't checked. \(counts)" : counts
         }
 
         private static func counted(_ count: Int, _ noun: String) -> String {

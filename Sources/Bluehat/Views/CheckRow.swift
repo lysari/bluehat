@@ -88,12 +88,16 @@ struct CheckRow: View {
             runningMark
                 .frame(width: Metrics.checkStatusWidth, height: Metrics.checkStatusWidth)
                 .accessibilityLabel("Checking now")
-        case .finished:
+        case .finished, .stoppedEarly:
             if let worstSeverity {
                 Text("\(findings.count)")
                     .font(Typography.count)
                     .foregroundStyle(Palette.severity(worstSeverity))
                     .accessibilityLabel(counted(findings.count, "finding"))
+            } else if status == .stoppedEarly {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Palette.notice)
+                    .accessibilityLabel("Stopped early")
             } else {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Palette.safe)
@@ -121,6 +125,7 @@ struct CheckRow: View {
         case .waiting: "Waiting for its turn in this scan."
         case .running: isShowingItemCount ? "Checking now: \(walkedItemCount.formatted()) items so far." : "Checking now."
         case .finished: finishedLine
+        case .stoppedEarly: findings.isEmpty ? "Stopped early at the memory limit." : "\(counted(findings.count, "finding")) before it stopped at the memory limit."
         }
     }
 

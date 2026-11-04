@@ -59,12 +59,13 @@ public struct Scanner: Sendable {
     let limits: ScanLimits
     let cancellation: ScanCancellation
     let walkRoots: [String]
+    let memoryFootprint: @Sendable () -> Int?
 
     public init(projectFolders: [String] = [], kind: ScanKind = .normal, excludedFolders: [String] = [], excludedPatterns: [String] = [], limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation()) {
         self.init(projectFolders: projectFolders, kind: kind, excludedFolders: excludedFolders, excludedPatterns: excludedPatterns, limits: limits, cancellation: cancellation, walkRoots: VolumeWalk.startupRoots)
     }
 
-    init(projectFolders: [String] = [], kind: ScanKind = .normal, excludedFolders: [String] = [], excludedPatterns: [String] = [], limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation(), walkRoots: [String]) {
+    init(projectFolders: [String] = [], kind: ScanKind = .normal, excludedFolders: [String] = [], excludedPatterns: [String] = [], limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation(), walkRoots: [String], memoryFootprint: @escaping @Sendable () -> Int? = ProcessMemory.footprintBytes) {
         self.projectFolders = projectFolders
         self.kind = kind
         self.excludedFolders = excludedFolders
@@ -72,6 +73,7 @@ public struct Scanner: Sendable {
         self.limits = limits
         self.cancellation = cancellation
         self.walkRoots = walkRoots
+        self.memoryFootprint = memoryFootprint
     }
 
     var signatureChecks: SignatureChecks {
@@ -113,7 +115,7 @@ public struct Scanner: Sendable {
         let outcome = Mutex<(findings: [Finding], notices: [String])>(([], []))
         let thread = Thread {
             setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_THREAD, IOPOL_MATERIALIZE_DATALESS_FILES_OFF)
-            let walk = VolumeWalk(roots: walkRoots, excludedFolders: excludedFolders, excludedPatterns: excludedPatterns, ruleFiles: rules.filter { $0.check == .projectFile }.flatMap { $0.files ?? [] }, limits: limits, cancellation: cancellation, notScanned: notScanned, onItemsWalked: onItemsWalked)
+            let walk = VolumeWalk(roots: walkRoots, excludedFolders: excludedFolders, excludedPatterns: excludedPatterns, ruleFiles: rules.filter { $0.check == .projectFile }.flatMap { $0.files ?? [] }, limits: limits, cancellation: cancellation, notScanned: notScanned, memoryFootprint: memoryFootprint, onItemsWalked: onItemsWalked)
             let walked = walk.packageFileFindings(rules: rules, reported: reported)
             outcome.withLock { $0 = walked }
             finished.signal()

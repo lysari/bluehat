@@ -42,7 +42,8 @@ struct ScanRing: View {
     }
 
     private var statusValue: String {
-        store.phase == .finished ? counted(store.issues.count, "issue") : "Not scanned"
+        guard store.phase == .finished else { return "Not scanned" }
+        return "\(store.wasStoppedAtMemoryLimit ? "Deep Scan stopped early, " : "")\(counted(store.issues.count, "issue"))"
     }
 
     private func segmentStart(_ index: Int) -> CGFloat {

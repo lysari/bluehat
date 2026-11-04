@@ -109,8 +109,19 @@ struct NotScannedCollectorTests {
     }
 
     @Test func coverageIsReportedCalmly() {
-        let coverage = NotScannedList.Coverage(foldersRead: 827_282, packageFilesOpened: 48_685, unreadableFolders: 849, exclusionSummary: nil)
+        let coverage = NotScannedList.Coverage(foldersRead: 827_282, packageFilesOpened: 48_685, unreadableFolders: 849, exclusionSummary: nil, wasStoppedAtMemoryLimit: false)
         #expect(coverage.summary == "Read \(827_282.formatted()) folders · opened \(48_685.formatted()) package files · 849 folders couldn't be read")
+    }
+
+    @Test func aMemoryLimitEntryIsNeverDroppedForAPath() {
+        let collector = NotScannedCollector(limits: ScanLimits(unchecked: [.maxNotScannedEntries: ScanLimit.maxNotScannedEntries.range.lowerBound]))
+        for index in 0..<(ScanLimit.maxNotScannedEntries.range.lowerBound * 3) {
+            collector.add(entry("/folder\(index)"))
+        }
+        collector.add(NotScannedEntry(reason: .memoryLimit, summary: "The rest of the startup disk"))
+        let list = collector.finished()
+        #expect(list.reasons.first == .memoryLimit)
+        #expect(list.entries.first?.reason == .memoryLimit)
     }
 
     @Test func theSummaryLineCountsEverythingAndIsAbsentWhenEmpty() {

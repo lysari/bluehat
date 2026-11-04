@@ -236,7 +236,7 @@ struct ScanPanel: View {
             .confirmationDialog("Start a Deep Scan?", isPresented: $isConfirmingDeepScan, titleVisibility: .visible) {
                 Button("Start Deep Scan", action: startDeepScan)
             } message: {
-                Text("Bluehat runs the normal scan, then looks for npm packages and project config files across your startup disk and opens only those. It runs at low priority, so it can take a long time, and you can cancel at any time. macOS may ask for access to more folders, and folders listed in Settings › General are skipped.\n\nA clean result doesn't mean there is no malware anywhere on your Mac: programs outside the normal scan's folders aren't checked.")
+                Text("Bluehat runs the normal scan, then looks for npm packages and project config files across your startup disk and opens only those. It runs at low priority, so it can take a long time, and you can cancel at any time. macOS may ask for access to more folders, and folders listed in Settings › General are skipped. It stops by itself at the Deep Scan memory limit in Settings › Limits and says what it didn't check.\n\nA clean result doesn't mean there is no malware anywhere on your Mac: programs outside the normal scan's folders aren't checked.")
             }
             .onChange(of: store.canStartScan) { _, canStart in
                 if canStart {
@@ -344,7 +344,9 @@ struct ScanPanel: View {
         switch store.phase {
         case .idle: return .symbol("magnifyingglass")
         case .scanning: return .text("\(Int(store.progress * 100))%")
-        case .finished: return store.issues.isEmpty ? .symbol("checkmark") : .text("\(store.issues.count)")
+        case .finished:
+            guard store.issues.isEmpty else { return .text("\(store.issues.count)") }
+            return .symbol(store.wasStoppedAtMemoryLimit ? "exclamationmark" : "checkmark")
         }
     }
 
@@ -352,7 +354,7 @@ struct ScanPanel: View {
         if store.failure != nil { return Palette.failure }
         switch store.phase {
         case .idle, .scanning: return Palette.idle
-        case .finished: return store.issues.map(\.rule.severity).max().map(Palette.severity) ?? Palette.safe
+        case .finished: return store.issues.map(\.rule.severity).max().map(Palette.severity) ?? (store.wasStoppedAtMemoryLimit ? Palette.notice : Palette.safe)
         }
     }
 
@@ -364,7 +366,7 @@ struct ScanPanel: View {
             if store.isCancelling { return "Cancelling Deep Scan…" }
             return store.scanKind == .deep ? "Deep Scan running…" : "Scanning your Mac…"
         case .finished:
-            if store.issues.isEmpty { return "Your Mac looks safe" }
+            if store.issues.isEmpty { return store.wasStoppedAtMemoryLimit ? "Deep Scan stopped early" : "Your Mac looks safe" }
             return store.issues.count == 1 ? "1 issue needs attention" : "\(store.issues.count) issues need attention"
         }
     }
@@ -389,7 +391,8 @@ struct ScanPanel: View {
             let resolvedCount = store.history.latestChanges?.resolved.count ?? 0
             let newText = newCount == 0 ? "" : " · \(newCount) new"
             let resolvedText = resolvedCount == 0 ? "" : " · \(resolvedCount) resolved"
-            return "\(isDeepScan ? "Deep Scan · " : "")\(counted(ruleCount, "check")) in \(duration) · \(time)\(notes)\(ignored)\(newText)\(resolvedText)"
+            let scanName = store.wasStoppedAtMemoryLimit && !store.issues.isEmpty ? "Deep Scan stopped early · " : isDeepScan ? "Deep Scan · " : ""
+            return "\(scanName)\(counted(ruleCount, "check")) in \(duration) · \(time)\(notes)\(ignored)\(newText)\(resolvedText)"
         }
     }
 
@@ -454,6 +457,8 @@ struct ScanPanel: View {
             FindingsEmptyView(title: "No Matches", symbol: "magnifyingglass", message: "Nothing here matches your search or filter.") {
                 store.filter.reset()
             }
+        } else if store.wasStoppedAtMemoryLimit {
+            FindingsEmptyView(title: "No Findings", symbol: "exclamationmark.shield", message: "Nothing to list in what this Deep Scan read before it stopped. The rest of the disk wasn't checked.")
         } else {
             FindingsEmptyView(title: "No Findings", symbol: "checkmark.shield", message: store.ignoredCount == 0 ? "This scan found nothing to list." : "This scan has nothing to list. \(store.ignoredCount) ignored.")
         }
