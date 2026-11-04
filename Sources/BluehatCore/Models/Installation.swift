@@ -26,6 +26,10 @@ public struct Installation: Sendable, Equatable {
         }
     }
 
+    public var displayPath: String {
+        Finding.displayable(path)
+    }
+
     public var downloadPage: URL? {
         switch manager {
         case .nodeInstaller: Self.nodeDownloadPage

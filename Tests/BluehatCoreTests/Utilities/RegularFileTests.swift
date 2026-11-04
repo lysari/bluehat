@@ -26,7 +26,7 @@ struct RegularFileTests {
         let results = Mutex<(text: String?, hash: String??)>((nil, nil))
         let finished = finishes(within: 5) {
             let text = Scanner.readText(fifo)
-            let hash = Scanner.sha256(of: URL(fileURLWithPath: fifo))
+            let hash = Scanner.sha256(of: URL(fileURLWithPath: fifo), maxBytes: ScanLimits.defaults[.maxHashedFileBytes])
             results.withLock { $0 = (text, hash) }
         }
         #expect(finished)
@@ -46,7 +46,7 @@ struct RegularFileTests {
         #expect(truncate(path, 8 << 30) == 0)
         let clock = ContinuousClock()
         let elapsed = clock.measure {
-            #expect(RegularFile.read(atPath: path, maxBytes: Scanner.maxReadBytes, followingSymlinks: true) == nil)
+            #expect(RegularFile.read(atPath: path, maxBytes: ScanLimits.defaults[.maxReadBytes], followingSymlinks: true) == nil)
             #expect(Scanner.readText(path) == "")
         }
         #expect(elapsed < .milliseconds(500))
@@ -78,7 +78,7 @@ struct RegularFileTests {
         #expect(truncate(path, 8 << 30) == 0)
         let clock = ContinuousClock()
         let elapsed = clock.measure {
-            #expect(RegularFile.readStart(atPath: path, maxBytes: Scanner.maxReadBytes, followingSymlinks: true)?.data.count == Scanner.maxReadBytes)
+            #expect(RegularFile.readStart(atPath: path, maxBytes: ScanLimits.defaults[.maxReadBytes], followingSymlinks: true)?.data.count == ScanLimits.defaults[.maxReadBytes])
         }
         #expect(elapsed < .seconds(1))
     }

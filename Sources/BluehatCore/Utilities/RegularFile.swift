@@ -20,11 +20,13 @@ enum RegularFile {
     static func read(atPath path: String, maxBytes: Int, followingSymlinks: Bool) -> Data? {
         guard let file = open(atPath: path, followingSymlinks: followingSymlinks), file.size <= maxBytes else { return nil }
         defer { try? file.handle.close() }
-        do {
-            return try file.handle.read(upToCount: maxBytes) ?? Data()
-        } catch {
-            return nil
-        }
+        return readChunk(from: file.handle, upToCount: maxBytes)
+    }
+
+    /// Reads up to count bytes from an open file, or returns nil on a read error. Empty data means the end of the file.
+    /// Use it instead of `FileHandle.read(upToCount:)`, which leaves the bytes in the calling thread's autorelease pool until that pool drains.
+    static func readChunk(from handle: FileHandle, upToCount count: Int) -> Data? {
+        autoreleasepool { try? handle.read(upToCount: count) ?? Data() }
     }
 
     /// Reads at most maxBytes from the start of a regular file and returns them with the file's full size, or nil when it can't be opened with `open(atPath:followingSymlinks:)`.
@@ -32,6 +34,6 @@ enum RegularFile {
     static func readStart(atPath path: String, maxBytes: Int, followingSymlinks: Bool) -> (data: Data, size: Int)? {
         guard let file = open(atPath: path, followingSymlinks: followingSymlinks) else { return nil }
         defer { try? file.handle.close() }
-        return ((try? file.handle.read(upToCount: maxBytes)) ?? Data(), file.size)
+        return (readChunk(from: file.handle, upToCount: maxBytes) ?? Data(), file.size)
     }
 }

@@ -59,7 +59,7 @@ struct RulesSettingsTab: View {
                 .font(Typography.caption)
                 .foregroundStyle(Palette.secondaryText)
         }
-        .overlayScrollers()
+        .overlayScrollers(flashesOnAppear: true)
     }
 
     private var rulesSection: some View {

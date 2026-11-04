@@ -8,6 +8,7 @@ extension ScanSchedule {
         case .everySixHours: "Every 6 hours"
         case .everyTwelveHours: "Every 12 hours"
         case .daily: "Every day"
+        case .custom: "Custom"
         }
     }
 }

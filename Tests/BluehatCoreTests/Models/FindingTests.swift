@@ -9,7 +9,7 @@ struct FindingTests {
     }
 
     @Test func clipsLongDetails() {
-        #expect(finding(String(repeating: "a", count: 500)).detail.count == Finding.maxDetailLength + 1)
+        #expect(finding(String(repeating: "a", count: 500)).detail.count == ScanLimits.defaults[.maxDetailLength] + 1)
     }
 
     @Test(arguments: [

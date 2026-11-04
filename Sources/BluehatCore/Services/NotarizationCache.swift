@@ -6,14 +6,12 @@ struct NotarizationCache: Sendable {
         let isNotarized: Bool
     }
 
-    static let maxFileBytes = 5_000_000
-
     private(set) var verdicts: [String: Verdict]
     let fileURL: URL
 
-    init(fileURL: URL = Self.defaultFileURL) {
+    init(fileURL: URL = Self.defaultFileURL, limits: ScanLimits = .defaults) {
         self.fileURL = fileURL
-        verdicts = RegularFile.read(atPath: fileURL.path, maxBytes: Self.maxFileBytes, followingSymlinks: false).flatMap { try? JSONDecoder().decode([String: Verdict].self, from: $0) } ?? [:]
+        verdicts = RegularFile.read(atPath: fileURL.path, maxBytes: limits[.maxNotarizationCacheBytes], followingSymlinks: false).flatMap { try? JSONDecoder().decode([String: Verdict].self, from: $0) } ?? [:]
     }
 
     static var defaultFileURL: URL {

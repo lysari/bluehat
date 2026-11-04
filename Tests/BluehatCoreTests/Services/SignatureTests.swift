@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import BluehatCore
 
@@ -23,6 +24,11 @@ struct SignatureTests {
         try codesign.run()
         codesign.waitUntilExit()
         #expect(codesign.terminationStatus == 0)
+    }
+
+    @Test func signatureValidationStaysOfflineAndChecksEveryArchitecture() {
+        #expect(Scanner.signatureValidationFlags.contains(.noNetworkAccess))
+        #expect(Scanner.signatureValidationFlags.contains(SecCSFlags(rawValue: kSecCSCheckAllArchitectures)))
     }
 
     @Test func acceptsAppleSignedBinary() {

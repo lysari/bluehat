@@ -9,20 +9,24 @@ final class SignatureChecks: Sendable {
         case skipped
     }
 
-    static let openTimeout: TimeInterval = 20
-    static let checkTimeout: TimeInterval = 300
-    static let maxStuckPathsPerScan = 5
+    static let cancellationPollInterval: TimeInterval = 0.2
     static let stillBlockedPaths = Mutex<Set<String>>([])
 
     let openLimit: TimeInterval
     let checkLimit: TimeInterval
     let maxStuckPaths: Int
+    let cancellation: ScanCancellation
     private let progress = Mutex<(stuck: Set<String>, skipped: Set<String>)>(([], []))
 
-    init(openLimit: TimeInterval = openTimeout, checkLimit: TimeInterval = checkTimeout, maxStuckPaths: Int = maxStuckPathsPerScan) {
+    init(openLimit: TimeInterval, checkLimit: TimeInterval, maxStuckPaths: Int, cancellation: ScanCancellation = ScanCancellation()) {
         self.openLimit = openLimit
         self.checkLimit = checkLimit
         self.maxStuckPaths = maxStuckPaths
+        self.cancellation = cancellation
+    }
+
+    convenience init(limits: ScanLimits = .defaults, cancellation: ScanCancellation = ScanCancellation()) {
+        self.init(openLimit: TimeInterval(limits[.signatureOpenTimeout]), checkLimit: TimeInterval(limits[.signatureCheckTimeout]), maxStuckPaths: limits[.maxStuckPathsPerScan], cancellation: cancellation)
     }
 
     var stuckPaths: Set<String> {
@@ -33,10 +37,11 @@ final class SignatureChecks: Sendable {
         progress.withLock { $0.skipped }
     }
 
-    var skippedNotice: String? {
-        let (stuck, skipped) = progress.withLock { ($0.stuck.count, $0.skipped.count) }
-        guard skipped > 0 else { return nil }
-        return "Signature checks stopped after \(stuck == 1 ? "1 item" : "\(stuck.formatted()) items") couldn't be read and skipped \(skipped.formatted()) more."
+    func notScannedEntries(limits: ScanLimits = .defaults) -> [NotScannedEntry] {
+        let (stuck, skipped) = progress.withLock { ($0.stuck, $0.skipped) }
+        let stoppedAfter = stuck.count == 1 ? "1 item" : "\(stuck.count.formatted()) items"
+        return stuck.sorted().map { NotScannedEntry(reason: .timedOut, path: $0, explanation: "Reading it never finished, so its signature and notarization weren't checked", limits: limits) }
+            + skipped.sorted().map { NotScannedEntry(reason: .signatureCheckSkipped, path: $0, explanation: "Signature checks stopped after \(stoppedAfter) couldn't be read", limits: limits) }
     }
 
     func inspect<Value: Sendable>(_ url: URL, _ inspection: @escaping @Sendable (SecStaticCode) -> Value?) -> Outcome<Value> {
@@ -46,7 +51,7 @@ final class SignatureChecks: Sendable {
             return .stuck
         }
         let isPastLimit = progress.withLock { progress in
-            guard progress.stuck.count >= maxStuckPaths, !progress.stuck.contains(path) else { return false }
+            guard cancellation.isCancelled || (progress.stuck.count >= maxStuckPaths && !progress.stuck.contains(path)) else { return false }
             progress.skipped.insert(path)
             return true
         }
@@ -72,7 +77,7 @@ final class SignatureChecks: Sendable {
         }
         thread.qualityOfService = .userInitiated
         thread.start()
-        guard opened.wait(timeout: .now() + openLimit) == .success, finished.wait(timeout: .now() + checkLimit) == .success else {
+        guard wait(for: opened, limit: openLimit), wait(for: finished, limit: checkLimit) else {
             Self.stillBlockedPaths.withLock { blocked in
                 if !isDone.withLock({ $0 }) { blocked.insert(path) }
             }
@@ -80,5 +85,14 @@ final class SignatureChecks: Sendable {
             return .stuck
         }
         return .finished(result.withLock { $0 })
+    }
+
+    private func wait(for semaphore: DispatchSemaphore, limit: TimeInterval) -> Bool {
+        let deadline = DispatchTime.now() + limit
+        while !cancellation.isCancelled {
+            if semaphore.wait(timeout: min(deadline, .now() + Self.cancellationPollInterval)) == .success { return true }
+            if DispatchTime.now() >= deadline { return false }
+        }
+        return false
     }
 }

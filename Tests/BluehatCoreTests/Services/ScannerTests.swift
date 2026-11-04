@@ -68,14 +68,14 @@ struct ScannerTests {
 
     @Test func matchesOnlyTheCappedStartOfLongText() {
         let regexes = Scanner.regexes(["evil-marker"])
-        let padding = String(repeating: "x", count: Scanner.maxMatchedLength - "evil-marker".count)
+        let padding = String(repeating: "x", count: ScanLimits.defaults[.maxMatchedLength] - "evil-marker".count)
         #expect(Scanner.matches(regexes, padding + "evil-marker"))
         #expect(!Scanner.matches(regexes, padding + "x" + "evil-marker"))
     }
 
     @Test func capCountsUTF16UnitsNotCharacters() {
         let regexes = Scanner.regexes(["evil-marker"])
-        let combining = "a" + String(repeating: "\u{301}", count: Scanner.maxMatchedLength)
+        let combining = "a" + String(repeating: "\u{301}", count: ScanLimits.defaults[.maxMatchedLength])
         #expect(!Scanner.matches(regexes, combining + "evil-marker"))
     }
 

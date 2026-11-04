@@ -28,7 +28,7 @@ struct ProjectFileTests {
         try Data(text.utf8).write(to: url)
     }
 
-    func check(_ rules: [Rule]) -> (findings: [Finding], notice: String?) {
+    func check(_ rules: [Rule]) -> (findings: [Finding], notScanned: [NotScannedEntry]) {
         let projects = ProjectFolders.directories(in: [root.path], containing: NpmInventory.projectFileNames).directories
         return Scanner.projectFileFindings(rules, projects: projects)
     }
@@ -76,7 +76,7 @@ struct ProjectFileTests {
         #expect(relative(checked.findings) == ["project.hidden-code Line 6 · app/tailwind.config.js", "project.hidden-code Line 6 · web/tailwind.config.js"])
         #expect(checked.findings.map(\.path) == [root.appending(path: "app/tailwind.config.js").path, root.appending(path: "web/tailwind.config.js").path])
         #expect(checked.findings.allSatisfy { !$0.detail.contains("eval") })
-        #expect(checked.notice == nil)
+        #expect(checked.notScanned.isEmpty)
     }
 
     @Test func cleanConfigGivesNoFinding() throws {
@@ -134,14 +134,15 @@ struct ProjectFileTests {
     @Test func scansTheCappedStartOfAnOversizedFileAndReportsIt() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         try write("{}", to: "app/package.json")
-        let filler = String(repeating: "// padding\n", count: Scanner.maxReadBytes / 11 + 1)
+        let filler = String(repeating: "// padding\n", count: ScanLimits.defaults[.maxReadBytes] / 11 + 1)
         try write(Self.injectedTailwind + filler, to: "app/big.config.js")
         try write(filler + Self.injectedTailwind, to: "app/late.config.mjs")
 
         let checked = check([hiddenCode])
 
         #expect(relative(checked.findings) == ["project.hidden-code Line 6 · app/big.config.js"])
-        #expect(checked.notice == "Project file check read only the first 1 MB of \(root.path)/app/big.config.js, \(root.path)/app/late.config.mjs.")
+        #expect(checked.notScanned.map(\.path) == ["\(root.path)/app/big.config.js", "\(root.path)/app/late.config.mjs"])
+        #expect(checked.notScanned.allSatisfy { $0.reason == .partlyRead && $0.explanation == "Only the first 1 MB was read (Project file check)" })
     }
 
     @Test func checksOnlyTheProjectsOfTheSharedWalk() throws {

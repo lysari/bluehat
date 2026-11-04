@@ -15,7 +15,7 @@ struct NotarizationTests {
         ("/Applications/\(name).app", "AB12CD34EF", cdhash, isNotarized)
     }
 
-    func check(_ apps: [App], cache: inout NotarizationCache, verdicts: [String: Bool?] = [:], assessed: inout [String]) -> (findings: [Finding], notice: String?) {
+    func check(_ apps: [App], cache: inout NotarizationCache, verdicts: [String: Bool?] = [:], assessed: inout [String]) -> (findings: [Finding], notScanned: [NotScannedEntry]) {
         Scanner.notarizationFindings([Self.rule()], apps: apps, cache: &cache) { path in
             assessed.append(path)
             return verdicts[path] ?? false
@@ -65,7 +65,7 @@ struct NotarizationTests {
         let result = check([Self.app("Stats", isNotarized: true)], cache: &cache, assessed: &assessed)
         #expect(assessed.isEmpty)
         #expect(result.findings.isEmpty)
-        #expect(result.notice == nil)
+        #expect(result.notScanned.isEmpty)
     }
 
     @Test func reportsAppGatekeeperCallsUnnotarized() {
@@ -76,7 +76,7 @@ struct NotarizationTests {
         #expect(result.findings.map(\.detail) == ["Old.app · team AB12CD34EF · /Applications/Old.app"])
         #expect(result.findings.map(\.path) == ["/Applications/Old.app"])
         #expect(cache.isNotarized(path: "/Applications/Fresh.app", cdhash: "aa11") == true)
-        #expect(result.notice == nil)
+        #expect(result.notScanned.isEmpty)
     }
 
     @Test func usesCachedVerdictsWithoutAssessing() {
@@ -87,7 +87,7 @@ struct NotarizationTests {
         let result = check([Self.app("Old"), Self.app("Fresh")], cache: &cache, assessed: &assessed)
         #expect(assessed.isEmpty)
         #expect(result.findings.map(\.path) == ["/Applications/Old.app"])
-        #expect(result.notice == nil)
+        #expect(result.notScanned.isEmpty)
     }
 
     @Test func assessesAgainWhenTheAppChanged() {
@@ -107,7 +107,8 @@ struct NotarizationTests {
         #expect(assessed == ["/Applications/Old.app"])
         #expect(result.findings.isEmpty)
         #expect(cache.verdicts.isEmpty)
-        #expect(result.notice == "Notarization check couldn't ask Gatekeeper about 1 new or changed app yet and tries again on the next scan.")
+        #expect(result.notScanned.map(\.path) == ["/Applications/Old.app"])
+        #expect(result.notScanned.map(\.reason) == [.gatekeeperNotAsked])
     }
 
     @Test func offlineStopsTheRoundAfterOneAttempt() {
@@ -119,21 +120,21 @@ struct NotarizationTests {
         #expect(assessed.count == 1)
         #expect(result.findings.isEmpty)
         #expect(cache.verdicts.isEmpty)
-        #expect(result.notice == "Notarization check couldn't ask Gatekeeper about 3 new or changed apps yet and tries again on the next scan.")
+        #expect(result.notScanned.count == 3)
     }
 
     @Test func spreadsAssessmentsOverScansWithinTheBudget() {
         var cache = NotarizationCache(fileURL: cacheURL)
-        let apps = (1...(Scanner.maxNotarizationAssessments + 2)).map { Self.app("App\($0)") }
+        let apps = (1...(ScanLimits.defaults[.maxNotarizationAssessments] + 2)).map { Self.app("App\($0)") }
         var first: [String] = []
         let firstResult = check(apps, cache: &cache, verdicts: Dictionary(uniqueKeysWithValues: apps.map { ($0.path, true) }), assessed: &first)
-        #expect(first.count == Scanner.maxNotarizationAssessments)
-        #expect(firstResult.notice == "Notarization check couldn't ask Gatekeeper about 2 new or changed apps yet and tries again on the next scan.")
+        #expect(first.count == ScanLimits.defaults[.maxNotarizationAssessments])
+        #expect(firstResult.notScanned.count == 2)
         var second: [String] = []
         let secondResult = check(apps, cache: &cache, verdicts: Dictionary(uniqueKeysWithValues: apps.map { ($0.path, true) }), assessed: &second)
         #expect(Set(second).isDisjoint(with: first))
         #expect(Set(first + second) == Set(apps.map(\.path)))
-        #expect(secondResult.notice == nil)
+        #expect(secondResult.notScanned.isEmpty)
         var third: [String] = []
         _ = check(apps, cache: &cache, assessed: &third)
         #expect(third.isEmpty)

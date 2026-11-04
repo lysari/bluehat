@@ -85,11 +85,16 @@ run anything.
 | | |
 | --- | --- |
 | <img src="assets/readme/menubar.png" width="50" alt="Menu bar shield with 6 issues"> | **Menu bar count**: the shield shows scan progress, then the number of open issues. |
-| 🪟 **Floating panel** | One click on the shield opens the scan panel, which stays above other windows until you click again. |
+| 🪟 **Floating panel** | One click on the shield opens the scan panel, which stays above other windows until you click again. To let other windows cover it, turn off the switch in Settings › General; the shield then brings it back to the front. |
+| 🧭 **Live checks grid** | During a scan a spinner marks the check running now, and a Deep Scan adds a Disk walk row with its live count. Click any check, at any time, for what it looks for, where it looks, what a finding means, and whether it reads file contents or reaches the internet. |
 | 🔍 **Finding details** | What was found, why it matters, how to fix it, and source links for every finding. |
+| 🗂️ **Findings list** | One list sorted by severity, or grouped by check area with a count on each group. Choose in Settings › General. A group expands and collapses with a click, and every group opens again on each new scan result, so a new threat is never hidden. Each group's **⋯** menu offers **Copy Fix Steps**, **Ignore All** and, for Software versions, **Move All to Trash**. There is no Fix All, on purpose. Search as you type and a filter menu narrow the list by severity and check type; a group's actions then act only on the findings shown, and say how many. |
+| 🚧 **Not Scanned** | A tab beside the findings lists what a scan knows it didn't check: folders it couldn't open, files over a limit, cloud-only files, launch items it couldn't parse, checks that timed out and more, grouped by a plain reason with your home folder first, each with Show in Finder. A calm line in the status card opens it, and "Your Mac looks safe" stays as it is. The list covers the latest scan and isn't saved. |
 | ✅ **Signed rules you review** | Hand-written rules and a malware fingerprint feed ship inside the app and are verified with Ed25519 every time they load. Settings › Rules checks for updates when you click, compares them with your local copy, and changes nothing until you accept. |
-| 🕒 **Scheduled scans** | Every 1, 6, 12 or 24 hours, with a notification only for issues that weren't there before. |
-| 🙈 **Ignore list** | Hide one exact finding; review and undo it in Settings › Ignored. |
+| 🔬 **Deep Scan** | **Deep Scan…**, the right half of the Scan Now button in the panel, runs the normal scan after a confirmation, then looks for npm packages and project config files across the startup disk. It decides from file names alone and opens only `package.json`, `*.config.js`, `*.config.json`, `*.config.ts`, `*.config.mjs`, `*.config.cjs`, `*.config.cts`, `*.config.mts`, npm, Yarn and pnpm lockfiles, and the exact file names the rules list. It runs one file at a time at background priority, shows its progress and can be cancelled with the red **Cancel** that replaces **Deep Scan…** while it runs, and it never crosses into other volumes or follows symlinks. Afterwards the Not Scanned tab says how many folders it read, how many package files it opened and how many folders it couldn't read, and lists them. A clean result doesn't mean there is no malware anywhere on the Mac: programs outside the normal scan's folders aren't checked. Settings › General lists the folders it skips and takes `.gitignore`-style patterns such as `node_modules`, `*.log` and `~/Library/Caches`. |
+| 🕒 **Scheduled scans** | Every 1, 6, 12 or 24 hours, or once at a date and time you choose, with a notification only for issues that weren't there before. A missed custom scan runs as soon as the Mac wakes or Bluehat opens, and the schedule then turns off. |
+| 🎚️ **Adjustable limits** | Settings › Limits lists every limit on what a scan reads, counts, waits for or keeps, such as the largest `package.json` it opens, with what raising or lowering costs. Reset one or all to the defaults. A change applies to the next scan. |
+| 🙈 **Ignore list** | Hide one exact finding, or a whole group of exact findings after a warning; review and undo them in Settings › Ignored, grouped by check area, one at a time or with **Remove All** for a group. New findings of the same type still appear. |
 | 📜 **Scan history** | The last 30 scans, with what was new and what was resolved each time. |
 | 🚀 **Launch at login** | One switch in Settings › General. |
 | ⬆️ **App updates you start** | Settings › About checks GitHub when you click, shows the new version, its date and its notes, and installs only after you click and the download passes its signature check. |
@@ -144,7 +149,16 @@ folder, not from a real infection.
   for a Developer ID app with neither does it run `spctl --assess`, and macOS's
   Gatekeeper then looks up that app's code hash on Apple's notarization servers,
   the same lookup it makes when you first open a downloaded app. At most 5 apps
-  per scan, each once until it changes, and none while the Mac is offline.
+  per scan, each once until it changes, and none while the Mac is offline. A Deep
+  Scan has the same limit.
+- **Signature checks stay off the network.** App signing and Launch signing ask the
+  Security framework to validate a signature with its no-network option, and Bluehat
+  itself sends nothing. The trade-off: these checks don't look up whether Apple has
+  revoked a developer's certificate, so a revoked certificate alone gives no finding
+  from them. Apple says Gatekeeper checks for revoked certificates online, but the
+  notarization check asks Gatekeeper only about the Developer ID apps described above
+  and counts only a notarized or not notarized answer, so it doesn't report a revoked
+  certificate either, and it never looks at a launch item's program.
 - **No telemetry.** No analytics, no crash reporting, no accounts. Findings and
   scan history stay on your Mac. Source links and download pages open in your
   browser only when you click them.
@@ -167,15 +181,39 @@ folder, not from a real infection.
   rules. It never connects to a listed address and never looks up a name.
 - **Capped reads and time limits.** Files an attacker could plant are read only
   if they are regular files and only up to a size limit, and a file past that
-  limit is named in the scan's notice. A huge file, a pipe or a device can't
+  limit is listed in the Not Scanned tab. A huge file, a pipe or a device can't
   stall a scan, and a signature check or macOS tool that never finishes is
-  abandoned at a time limit.
+  abandoned at a time limit and listed too. A JSON file built to crash a parser
+  with extreme nesting is refused before parsing and listed, so it can't stop a
+  scan. A Deep Scan keeps these guards, and
+  it skips a package file over its limit and lists it. You can adjust each
+  limit in Settings › Limits, but only within a fixed range, so no value can
+  turn a check off or let a scan run without a limit. Any scan with a changed
+  limit names it in its notice, so a change made by malware or forgotten by
+  you shows up. Limits that protect signed rules and app updates can't be changed.
 - **You stay in control.** **Move to Trash** asks you to confirm the exact path
-  first, and nothing is ever deleted permanently. **Update** opens Terminal with
-  the command on screen and runs it only after you press Return.
+  first, and nothing is ever deleted permanently. **Move All to Trash** lists every
+  full path first, moves only copies that already offer Move to Trash, refuses
+  system locations such as `/System` and `/usr`, and reports what moved and what
+  couldn't be moved and why. **Update** opens Terminal with the command on screen
+  and runs it only after you press Return.
 - **You choose the folders.** Settings › Projects lists the folders Bluehat
   reads for npm projects. It starts with the usual ones that exist, such as
   `~/Developer` and `~/Projects`.
+- **A Deep Scan may raise more privacy prompts.** Only you can start one, and
+  scheduled scans never do. As it walks the whole disk, macOS may ask for Files &
+  Folders access to places such as Documents, or to other apps' data. If you say
+  no, only those files are skipped, and the Not Scanned tab counts the folders it
+  couldn't read and lists them. Full Disk Access for Bluehat in System Settings ›
+  Privacy & Security is optional: it may open some of them, but not system-only
+  ones, and it gives Bluehat wider access to your private data. A Deep Scan opens
+  only package files, never other files, and doesn't hash files or check apps beyond
+  what the normal scan does. Files stored only in iCloud or another cloud drive are
+  skipped and listed too, so a Deep Scan never downloads them. It stays on the
+  startup disk, so other volumes, such as external drives, aren't scanned, and the
+  tab says so once rather than listing them. Every folder and
+  pattern excluded in Settings › General is named at the top of that tab. A pattern
+  or saved folder that would skip the whole disk, such as `*` or `/`, is refused.
 
 ## Install
 
@@ -265,7 +303,7 @@ flowchart LR
         subgraph Core["BluehatCore"]
             Feed["RuleFeed<br/>local files, check and verify"]
             Scan["Scanner<br/>20 built-in checks"]
-            Inv["ProjectFolders · NpmInventory"]
+            Inv["ProjectFolders · VolumeWalk · NpmInventory"]
             Hist["ScanHistory"]
         end
     end
@@ -290,9 +328,9 @@ flowchart LR
 | [`Sources/Bluehat/Views/`](Sources/Bluehat/Views) | SwiftUI views, one per file, and the display text of each check |
 | [`Sources/Bluehat/Stores/`](Sources/Bluehat/Stores) | `ScanStore` (scans, findings, schedule), `SettingsStore`, `FeedReview` (checking for, reviewing and accepting rule updates) and `AppUpdateReview` (checking for and installing app updates) |
 | [`Sources/Bluehat/Theme/`](Sources/Bluehat/Theme) | Design tokens: colours, spacing, fonts, motion |
-| [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, installs, scan records |
-| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `SignatureChecks` (time limits on code-signing calls), `ProjectFolders`, `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
-| [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader |
+| [`Sources/BluehatCore/Models/`](Sources/BluehatCore/Models) | Rules, the malware feed, findings, the Not Scanned list, search and filter, installs, scan records, scan limits |
+| [`Sources/BluehatCore/Services/`](Sources/BluehatCore/Services) | `RuleFeed`, `Scanner`, `SignatureChecks` (time limits on code-signing calls), `ProjectFolders`, `VolumeWalk` (the startup disk walk of a Deep Scan), `NpmInventory`, `ScanHistory`, `NotarizationCache`, `AppUpdater` (GitHub check, download, signature check), `AppInstaller` (mount, inspect, replace, roll back) |
+| [`Sources/BluehatCore/Utilities/`](Sources/BluehatCore/Utilities) | `RegularFile`, the capped file reader, `ScanCancellation` and `ProtectedLocation`, which refuses system paths for Move All to Trash |
 | [`Sources/bluehat-sign/`](Sources/bluehat-sign) | The CLI that validates and signs `rules.json` and signs app updates |
 | [`Tests/BluehatCoreTests/`](Tests/BluehatCoreTests) | Unit tests, mirroring `Sources/BluehatCore` |
 | [`scripts/`](scripts) | Bundle, install, release, publish and icon scripts |

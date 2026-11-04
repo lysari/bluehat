@@ -108,7 +108,7 @@ struct SignatureChecksTests {
         #expect(findings.map(\.path) == [plist.path])
     }
 
-    @Test func notarizationSkipsAStuckAppWithANotice() throws {
+    @Test func notarizationSkipsAStuckAppAndListsIt() throws {
         let fifo = try fifoApp("x.app")
         let normal = directory.appending(path: "normal")
         try Data("#!/bin/sh\n".utf8).write(to: normal)
@@ -122,9 +122,10 @@ struct SignatureChecksTests {
         #expect(Scanner.developerIDApp(at: fifo, checks: checks) == nil)
         #expect(clock.now - start < Self.bounded)
         #expect(Scanner.developerIDApp(at: normal, checks: SignatureChecks()) == nil)
-        let location = Finding.displayable(NSString(string: fifo.path).abbreviatingWithTildeInPath)
-        #expect(Scanner.unfinishedNotarizationNotice(apps: [fifo, normal], checks: checks) == "Notarization check skipped \(location) because reading never finished.")
-        #expect(Scanner.unfinishedNotarizationNotice(apps: [normal], checks: checks) == nil)
+        let entries = checks.notScannedEntries()
+        #expect(entries.map(\.path) == [fifo.path])
+        #expect(entries.map(\.reason) == [.timedOut])
+        #expect(entries.first?.explanation == "Reading it never finished, so its signature and notarization weren't checked")
     }
 
     @Test func checksPastTheLimitAreSkippedAndCounted() throws {
@@ -136,7 +137,7 @@ struct SignatureChecksTests {
             try? FileManager.default.removeItem(at: directory)
         }
         let checks = trapChecks(maxStuckPaths: 2)
-        #expect(checks.skippedNotice == nil)
+        #expect(checks.notScannedEntries().isEmpty)
         let clock = ContinuousClock()
         let start = clock.now
         #expect(fifos.map { Scanner.signatureProblem(at: $0, checks: checks) } == [Scanner.unfinishedSignatureProblem, Scanner.unfinishedSignatureProblem, nil, nil])
@@ -144,7 +145,38 @@ struct SignatureChecksTests {
         #expect(clock.now - start < Self.bounded)
         #expect(checks.stuckPaths == Set(fifos.prefix(2).map(\.path)))
         #expect(checks.skippedPaths == Set(fifos.suffix(2).map(\.path) + [normal.path]))
-        #expect(checks.skippedNotice == "Signature checks stopped after 2 items couldn't be read and skipped 3 more.")
+        let skipped = checks.notScannedEntries().filter { $0.reason == .signatureCheckSkipped }
+        #expect(skipped.count == 3)
+        #expect(skipped.allSatisfy { $0.explanation == "Signature checks stopped after 2 items couldn't be read" })
+    }
+
+    @Test func aDeepScanCannotRaiseTheStuckPathLimit() {
+        #expect(Scanner(kind: .normal).signatureChecks.maxStuckPaths == ScanLimits.defaults[.maxStuckPathsPerScan])
+        #expect(Scanner(kind: .deep).signatureChecks.maxStuckPaths == ScanLimits.defaults[.maxStuckPathsPerScan])
+    }
+
+    @Test func aCancelledScanStartsNoCheck() throws {
+        let cancellation = ScanCancellation()
+        cancellation.cancel()
+        let checks = SignatureChecks(cancellation: cancellation)
+        #expect(Scanner.signatureProblem(at: URL(fileURLWithPath: "/bin/ls"), checks: checks) == nil)
+        #expect(checks.skippedPaths == ["/bin/ls"])
+        #expect(checks.stuckPaths.isEmpty)
+    }
+
+    @Test func cancellingStopsWaitingForACheckThatIsStuck() throws {
+        let fifo = try fifoApp("x.app")
+        defer {
+            unblock(fifo)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let cancellation = ScanCancellation()
+        let checks = SignatureChecks(openLimit: 60, checkLimit: 60, maxStuckPaths: ScanLimits.defaults[.maxStuckPathsPerScan], cancellation: cancellation)
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.trapLimit) { cancellation.cancel() }
+        let clock = ContinuousClock()
+        let start = clock.now
+        #expect(Scanner.signatureProblem(at: fifo, checks: checks) == Scanner.unfinishedSignatureProblem)
+        #expect(clock.now - start < Self.bounded)
     }
 
     @Test func thousandsOfTrapsCannotLeakAThreadEach() throws {
@@ -160,7 +192,7 @@ struct SignatureChecksTests {
         #expect(clock.now - start < Self.bounded)
         #expect(findings.count <= 2 + ProcessInfo.processInfo.activeProcessorCount)
         #expect(findings.count + checks.skippedPaths.count == fifos.count)
-        #expect(checks.skippedNotice?.contains("skipped \(fifos.count - findings.count) more") == true)
+        #expect(checks.notScannedEntries().count { $0.reason == .signatureCheckSkipped } == fifos.count - findings.count)
     }
 
     @Test func aStuckPathCheckedAgainCountsOnceAndDoesNotWaitAgain() throws {
@@ -180,11 +212,11 @@ struct SignatureChecksTests {
         #expect(Scanner.signatureProblem(at: fifo, checks: patient) == Scanner.unfinishedSignatureProblem)
         #expect(clock.now - start < Self.bounded)
         #expect(patient.stuckPaths == [fifo.path])
-        #expect(patient.skippedNotice == nil)
+        #expect(patient.skippedPaths.isEmpty)
         #expect(Scanner.signatureProblem(at: fifo, checks: checks) == Scanner.unfinishedSignatureProblem)
         #expect(checks.stuckPaths == [fifo.path])
         #expect(Scanner.signatureProblem(at: other, checks: checks) == Scanner.unfinishedSignatureProblem)
-        #expect(checks.skippedNotice == nil)
+        #expect(checks.skippedPaths.isEmpty)
     }
 
     @Test func aNewScanDoesNotStartAnotherThreadOnAPathStillBlocked() throws {
@@ -232,7 +264,7 @@ struct SignatureChecksTests {
         #expect(Scanner.signatureProblem(at: URL(fileURLWithPath: "/bin/ls"), checks: checks) == nil)
         #expect(Scanner.developerIDApp(at: URL(fileURLWithPath: "/bin/ls"), checks: checks) == nil)
         #expect(checks.stuckPaths.isEmpty)
-        #expect(checks.skippedNotice == nil)
+        #expect(checks.notScannedEntries().isEmpty)
     }
 
     @Test func checksAppsConcurrentlyWithTheirUsualResults() throws {

@@ -12,8 +12,8 @@ struct ProjectFoldersTests {
         try Data("{}".utf8).write(to: url)
     }
 
-    func found(_ folders: [String], budget: Int = ProjectFolders.maxFoldersPerProjectFolder) -> [String] {
-        ProjectFolders.directories(in: folders, containing: names, budget: budget).directories.map {
+    func found(_ folders: [String]) -> [String] {
+        ProjectFolders.directories(in: folders, containing: names).directories.map {
             ($0.path.replacingOccurrences(of: root.path, with: "")) + " " + $0.files.sorted().joined(separator: ",")
         }
     }
@@ -46,7 +46,7 @@ struct ProjectFoldersTests {
 
     @Test func stopsAtTheMaximumDepth() throws {
         defer { try? FileManager.default.removeItem(at: root) }
-        let deepest = (1...ProjectFolders.maxDepth).map { "d\($0)" }.joined(separator: "/")
+        let deepest = (1...ScanLimits.defaults[.maxProjectDepth]).map { "d\($0)" }.joined(separator: "/")
         try write("\(deepest)/package.json")
         try write("\(deepest)/too-deep/package.json")
 
@@ -99,10 +99,10 @@ struct ProjectFoldersTests {
         try write("photos/package.json")
         try write("web/package.json")
 
-        let walked = ProjectFolders.directories(in: [root.path], containing: names, budget: 3)
+        let walked = ProjectFolders.directories(in: [root.path], containing: names, limits: ScanLimits(unchecked: [.maxFoldersPerProjectFolder: 3]))
 
         #expect(walked.directories.map { URL(fileURLWithPath: $0.path).lastPathComponent } == ["photos", "web"])
-        #expect(walked.notice == nil)
+        #expect(walked.notScanned.isEmpty)
     }
 
     @Test func folderBudgetCutsEachProjectFolderAndNamesEveryCutOne() throws {
@@ -113,17 +113,18 @@ struct ProjectFoldersTests {
         try write("three/a/package.json")
         let folders = ["one", "two", "three"].map { root.appending(path: $0).path }
 
-        let walked = ProjectFolders.directories(in: folders, containing: names, budget: 3)
+        let walked = ProjectFolders.directories(in: folders, containing: names, limits: ScanLimits(unchecked: [.maxFoldersPerProjectFolder: 3]))
 
         #expect(walked.directories.map { $0.path.replacingOccurrences(of: root.path, with: "") } == ["/one/a", "/three/a"])
-        #expect(walked.notice == "Project folder check covered only the first 3 folders per project folder and stopped early in \(folders[0]), \(folders[1]).")
+        #expect(walked.notScanned.map(\.path) == [folders[0], folders[1]])
+        #expect(walked.notScanned.allSatisfy { $0.reason == .overCountLimit && $0.explanation == "Project folder check covered only the first 3 folders here and stopped early" })
     }
 
     @Test func reportsNothingWithinTheBudget() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         try write("a/package.json")
 
-        #expect(ProjectFolders.directories(in: [root.path], containing: names, budget: 2).notice == nil)
+        #expect(ProjectFolders.directories(in: [root.path], containing: names, limits: ScanLimits(unchecked: [.maxFoldersPerProjectFolder: 2])).notScanned.isEmpty)
     }
 
     @Test func fileNameBudgetCutsTheWalkAndReportsIt() throws {
@@ -134,10 +135,11 @@ struct ProjectFoldersTests {
         try write("b/package.json")
         try write("notes/one.txt")
 
-        let walked = ProjectFolders.directories(in: [root.path], containing: names, fileNameBudget: 3)
+        let walked = ProjectFolders.directories(in: [root.path], containing: names, limits: ScanLimits(unchecked: [.maxFileNamesPerProjectFolder: 3]))
 
         #expect(walked.directories.map { URL(fileURLWithPath: $0.path).lastPathComponent } == ["a"])
-        #expect(walked.notice == "Project folder check kept only the first 3 file names of projects per project folder and stopped early in \(root.path).")
+        #expect(walked.notScanned.map(\.path) == [root.path])
+        #expect(walked.notScanned.map(\.explanation) == ["Project folder check kept only the first 3 file names of projects here and stopped early"])
     }
 
     @Test func walksNestedAndRepeatedFoldersOnce() throws {

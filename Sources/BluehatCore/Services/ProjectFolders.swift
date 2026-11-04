@@ -8,9 +8,6 @@ public enum ProjectFolders {
     ]
     static let skippedDirectoryPrefixes = ["bazel-"]
     static let environmentMarkers: Set<String> = ["pyvenv.cfg", "conda-meta"]
-    public static let maxDepth = 6
-    static let maxFoldersPerProjectFolder = 50_000
-    static let maxFileNamesPerProjectFolder = 200_000
 
     public static func existingDefaults() -> [String] {
         uniqueDirectories(defaults.map(Scanner.expand))
@@ -25,13 +22,16 @@ public enum ProjectFolders {
         }
     }
 
-    static func directories(in folders: [String], containing names: Set<String>, budget: Int = maxFoldersPerProjectFolder, fileNameBudget: Int = maxFileNamesPerProjectFolder) -> (directories: [(path: String, files: Set<String>)], notice: String?) {
+    static func directories(in folders: [String], containing names: Set<String>, limits: ScanLimits = .defaults) -> (directories: [(path: String, files: Set<String>)], notScanned: [NotScannedEntry]) {
+        let budget = limits[.maxFoldersPerProjectFolder]
+        let fileNameBudget = limits[.maxFileNamesPerProjectFolder]
+        let maxDepth = limits[.maxProjectDepth]
         var found: [(path: String, files: Set<String>)] = []
         var walked = Set<String>()
         var cut: [String] = []
         var fileNameCut: [String] = []
+        var tooDeep: [String] = []
         for folder in uniqueDirectories(folders) {
-            let shownFolder = NSString(string: folder).abbreviatingWithTildeInPath
             var queue = [(path: folder, depth: 0, isPackage: false)]
             var next = 0
             var visited = 0
@@ -47,13 +47,18 @@ public enum ProjectFolders {
                 if !files.isDisjoint(with: names) {
                     fileNames += files.count
                     guard fileNames <= fileNameBudget else {
-                        fileNameCut.append(shownFolder)
+                        fileNameCut.append(folder)
                         break
                     }
                     found.append((directory, files))
                 }
-                guard depth < maxDepth, !isPackage, !entries.contains(where: { environmentMarkers.contains($0.name) }) else { continue }
-                for entry in entries where entry.isDirectory && !entry.name.hasPrefix(".") && !skippedDirectories.contains(entry.name) && !skippedDirectoryPrefixes.contains(where: { entry.name.hasPrefix($0) }) {
+                guard !isPackage, !entries.contains(where: { environmentMarkers.contains($0.name) }) else { continue }
+                let subfolders = entries.filter { $0.isDirectory && !$0.name.hasPrefix(".") && !skippedDirectories.contains($0.name) && !skippedDirectoryPrefixes.contains(where: $0.name.hasPrefix) }
+                guard depth < maxDepth else {
+                    if !subfolders.isEmpty { tooDeep.append(directory) }
+                    continue
+                }
+                for entry in subfolders {
                     guard queue.count - next < budget - visited else {
                         isCut = true
                         continue walk
@@ -61,23 +66,24 @@ public enum ProjectFolders {
                     queue.append(("\(directory)/\(entry.name)", depth + 1, entry.isPackage))
                 }
             }
-            if isCut, !fileNameCut.contains(shownFolder) { cut.append(shownFolder) }
+            if isCut, !fileNameCut.contains(folder) { cut.append(folder) }
         }
-        let notices = [
-            cut.isEmpty ? nil : "Project folder check covered only the first \(budget.formatted()) folders per project folder and stopped early in \(cut.joined(separator: ", ")).",
-            fileNameCut.isEmpty ? nil : "Project folder check kept only the first \(fileNameBudget.formatted()) file names of projects per project folder and stopped early in \(fileNameCut.joined(separator: ", ")).",
-        ].compactMap { $0 }
-        return (found, notices.isEmpty ? nil : notices.joined(separator: " "))
+        let notScanned = cut.map { NotScannedEntry(reason: .overCountLimit, path: $0, explanation: "Project folder check covered only the first \(budget.formatted()) folders here and stopped early", limits: limits) }
+            + fileNameCut.map { NotScannedEntry(reason: .overCountLimit, path: $0, explanation: "Project folder check kept only the first \(fileNameBudget.formatted()) file names of projects here and stopped early", limits: limits) }
+            + tooDeep.map { NotScannedEntry(reason: .overDepthLimit, path: $0, explanation: "Project folder check stops \(maxDepth.formatted()) levels down, so the folders inside weren't searched", limits: limits) }
+        return (found, notScanned)
     }
 
     static func contents(of directory: String) -> [(name: String, isDirectory: Bool, isPackage: Bool)] {
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        let urls = (try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: directory, isDirectory: true), includingPropertiesForKeys: Array(keys))) ?? []
-        return urls.map { url in
-            let values = try? url.resourceValues(forKeys: keys)
-            let isDirectory = values?.isDirectory == true && values?.isSymbolicLink != true
-            return (url.lastPathComponent, isDirectory, isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]))?.isPackage == true)
+        autoreleasepool {
+            let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+            let urls = (try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath: directory, isDirectory: true), includingPropertiesForKeys: Array(keys))) ?? []
+            return urls.map { url in
+                let values = try? url.resourceValues(forKeys: keys)
+                let isDirectory = values?.isDirectory == true && values?.isSymbolicLink != true
+                return (url.lastPathComponent, isDirectory, isDirectory && (try? url.resourceValues(forKeys: [.isPackageKey]))?.isPackage == true)
+            }
+            .sorted { $0.name < $1.name }
         }
-        .sorted { $0.name < $1.name }
     }
 }

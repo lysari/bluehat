@@ -115,7 +115,7 @@ struct InstallationActions: View {
     }
 
     private func currentPlan() -> Plan? {
-        let installs = Scanner.installedSoftware()
+        let installs = Scanner.installedSoftware(limits: store.settings.scanLimits)
         guard let installation = Scanner.installation(at: path, in: installs) else { return nil }
         let target = installation.updateTarget(findings: store.findings)
         return Plan(installation: installation, target: target, update: target.flatMap(installation.updateCommand), remove: installation.removeCommand(among: installs))

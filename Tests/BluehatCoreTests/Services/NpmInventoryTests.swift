@@ -164,12 +164,12 @@ struct NpmInventoryTests {
         Rule(id: id, title: id, severity: .critical, category: .malware, check: .npmPackage, patterns: nil, paths: nil, ports: nil, hashes: nil, setting: nil, product: nil, advisory: nil, ranges: nil, packages: packages, files: nil, teams: nil, bundles: nil, minimumVersion: nil, hosts: nil, summary: nil, remedy: nil, references: nil)
     }
 
-    @Test func readsPackageLockV2AndV3PackagesWithNestedScopedAndAliasedEntries() {
-        #expect(valid(NpmInventory.packageLockPackages(Data(Self.packageLockV3.utf8))) == ["@babel/core@7.24.0", "chalk@5.6.1", "semver@6.3.1", "string-width@4.2.3"])
+    @Test func readsPackageLockV2AndV3PackagesWithNestedScopedAndAliasedEntries() throws {
+        #expect(valid(try NpmInventory.packageLockPackages(Data(Self.packageLockV3.utf8))) == ["@babel/core@7.24.0", "chalk@5.6.1", "semver@6.3.1", "string-width@4.2.3"])
     }
 
-    @Test func readsPackageLockV1DependenciesRecursively() {
-        #expect(valid(NpmInventory.packageLockPackages(Data(Self.packageLockV1.utf8))) == ["@scope/pkg@1.0.0", "chalk@5.6.1", "debug@2.6.9", "debug@4.4.2", "ms@2.1.3"])
+    @Test func readsPackageLockV1DependenciesRecursively() throws {
+        #expect(valid(try NpmInventory.packageLockPackages(Data(Self.packageLockV1.utf8))) == ["@scope/pkg@1.0.0", "chalk@5.6.1", "debug@2.6.9", "debug@4.4.2", "ms@2.1.3"])
     }
 
     @Test func readsYarnClassicEntriesByTheirFirstDescriptor() {
@@ -196,7 +196,7 @@ struct NpmInventoryTests {
 
     @Test(arguments: ["", "not json", "[1, 2]", #"{"packages": [1]}"#, #"{"packages": {"node_modules/x": 3}, "dependencies": "x"}"#, #"{"dependencies": {"a": {"version": 1}}}"#, "\u{0}\u{1}\u{FFFF}"])
     func skipsMalformedPackageLocks(text: String) {
-        #expect(valid(NpmInventory.packageLockPackages(Data(text.utf8))).isEmpty)
+        #expect(valid((try? NpmInventory.packageLockPackages(Data(text.utf8))) ?? []).isEmpty)
     }
 
     @Test(arguments: ["", "garbage", "packages:\n  :\n  @:\n  '@'\n  /@1.0.0:\n", "a@1.0.0:\n" + String(repeating: "  version ", count: 10_000), "\u{0}\u{1}:\n  version \"1.0.0\""])
@@ -205,13 +205,13 @@ struct NpmInventoryTests {
         #expect(valid(NpmInventory.pnpmLockPackages(text)).isEmpty)
     }
 
-    @Test func deeplyNestedV1DependenciesStopAtTheDepthLimit() {
+    @Test func deeplyNestedV1DependenciesStopAtTheDepthLimit() throws {
         var json = #"{"version": "1.0.0"}"#
-        for _ in 0..<(NpmInventory.maxDependencyDepth + 5) {
+        for _ in 0..<(ScanLimits.defaults[.maxDependencyDepth] + 5) {
             json = #"{"version": "1.0.0", "dependencies": {"a": \#(json)}}"#
         }
-        let packages = NpmInventory.packageLockPackages(Data(#"{"dependencies": {"a": \#(json)}}"#.utf8))
-        #expect(packages.count == NpmInventory.maxDependencyDepth)
+        let packages = try NpmInventory.packageLockPackages(Data(#"{"dependencies": {"a": \#(json)}}"#.utf8))
+        #expect(packages.count == ScanLimits.defaults[.maxDependencyDepth])
     }
 
     @Test(arguments: ["chalk@5.6.1", "@babel/core@7.24.0", "alias@npm:chalk@5.6.1", "alias@npm:@scope/x@1.0.0"])
@@ -235,7 +235,7 @@ struct NpmInventoryTests {
         try write("{}", to: "huge/package.json")
         FileManager.default.createFile(atPath: root.appending(path: "huge/package-lock.json").path, contents: nil)
         let huge = try FileHandle(forWritingTo: root.appending(path: "huge/package-lock.json"))
-        try huge.truncate(atOffset: UInt64(NpmInventory.maxLockfileBytes + 1))
+        try huge.truncate(atOffset: UInt64(ScanLimits.defaults[.maxLockfileBytes] + 1))
         try huge.close()
         try write("{}", to: "lib/package.json")
         let projects = ProjectFolders.directories(in: [root.path], containing: NpmInventory.projectFileNames).directories
@@ -254,7 +254,8 @@ struct NpmInventoryTests {
             "lib/pnpm-lock.yaml @ctrl/tinycolor@4.1.1",
             "lib/pnpm-lock.yaml debug@4.4.2",
         ])
-        #expect(inventory.notice == "npm package check skipped lockfiles over 30 MB: \(root.path)/huge/package-lock.json.")
+        #expect(inventory.notScanned.map(\.path) == ["\(root.path)/huge/package-lock.json"])
+        #expect(inventory.notScanned.map(\.reason) == [.overSizeLimit])
     }
 
     @Test func readsGlobalPackagesWithScopesAndNestingAndSkipsLinksAndBadManifests() throws {
@@ -282,7 +283,7 @@ struct NpmInventoryTests {
             "npm npm@10.8.2",
             "npm/node_modules/debug debug@4.4.2",
         ])
-        #expect(inventory.notice == nil)
+        #expect(inventory.notScanned.isEmpty)
     }
 
     @Test func globalBudgetCutsTheWalkAndReportsIt() throws {
@@ -292,11 +293,12 @@ struct NpmInventoryTests {
         }
         let modules = root.appending(path: "lib/node_modules").path
 
-        let inventory = NpmInventory.packages(inProjects: [], moduleDirectories: [modules], globalBudget: 2)
+        let inventory = NpmInventory.packages(inProjects: [], moduleDirectories: [modules], limits: ScanLimits(unchecked: [.maxGlobalPackages: 2]))
 
         #expect(inventory.packages.map(\.name) == ["a", "b"])
-        #expect(inventory.notice == "npm package check covered only the first 2 global packages and skipped the rest of \(modules).")
-        #expect(NpmInventory.packages(inProjects: [], moduleDirectories: [modules], globalBudget: 3).notice == nil)
+        #expect(inventory.notScanned.map(\.path) == [modules])
+        #expect(inventory.notScanned.map(\.explanation) == ["npm package check covered only the first 2 global packages and skipped the rest here"])
+        #expect(NpmInventory.packages(inProjects: [], moduleDirectories: [modules], limits: ScanLimits(unchecked: [.maxGlobalPackages: 3])).notScanned.isEmpty)
     }
 
     @Test func looksForGlobalPackagesInEveryNodeInstall() throws {

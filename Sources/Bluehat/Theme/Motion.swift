@@ -2,6 +2,7 @@ import SwiftUI
 
 enum Motion {
     static let standard = Animation.spring(duration: 0.3, bounce: 0.1)
+    static let feedback = Animation.easeOut(duration: 0.15)
     static let sweepDegreesPerSecond = 150.0
     static let pulseFloor = 0.45
     static let pulseSpeed = 3.0

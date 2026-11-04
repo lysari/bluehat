@@ -3,60 +3,60 @@ import Foundation
 enum NpmInventory {
     static let manifestName = "package.json"
     static let packageLockNames = ["package-lock.json", "npm-shrinkwrap.json"]
+    static let moduleFolderName = "node_modules"
     static let yarnLockName = "yarn.lock"
     static let pnpmLockName = "pnpm-lock.yaml"
     static let projectFileNames = Set([manifestName, yarnLockName, pnpmLockName] + packageLockNames)
     static let globalModuleDirectories = ["/opt/homebrew/lib/node_modules", "/usr/local/lib/node_modules"]
     static let installModuleSubpaths = ["lib/node_modules", "installation/lib/node_modules"]
-    static let maxLockfileBytes = 30_000_000
-    static let maxManifestBytes = 1_000_000
-    static let maxDependencyDepth = 32
-    static let maxModuleDepth = 8
-    static let maxGlobalPackages = 20_000
+    static let packageCheckName = "npm package check"
 
-    static func packages(inProjects projects: [(path: String, files: Set<String>)], moduleDirectories: [String], globalBudget: Int = maxGlobalPackages) -> (packages: [InstalledPackage], notice: String?) {
+    static func packages(inProjects projects: [(path: String, files: Set<String>)], moduleDirectories: [String], limits: ScanLimits = .defaults) -> (packages: [InstalledPackage], notScanned: [NotScannedEntry]) {
+        let maxLockfileBytes = limits[.maxLockfileBytes]
+        let globalBudget = limits[.maxGlobalPackages]
         var installed = Set<InstalledPackage>()
-        var oversized: [String] = []
+        var notScanned: [NotScannedEntry] = []
         for project in projects where project.files.contains(manifestName) {
             for name in project.files.intersection(projectFileNames).subtracting([manifestName]).sorted() {
                 let path = "\(project.path)/\(name)"
                 guard let data = RegularFile.read(atPath: path, maxBytes: maxLockfileBytes, followingSymlinks: false) else {
-                    if (RegularFile.open(atPath: path, followingSymlinks: false)?.size ?? 0) > maxLockfileBytes {
-                        oversized.append(NSString(string: path).abbreviatingWithTildeInPath)
+                    if let size = RegularFile.open(atPath: path, followingSymlinks: false)?.size, size > maxLockfileBytes {
+                        notScanned.append(.oversized(path: path, size: size, limit: maxLockfileBytes, limits: limits))
                     }
                     continue
                 }
-                installed.formUnion(lockfilePackages(named: name, data).compactMap { InstalledPackage(name: $0.name, version: $0.version, path: path) })
+                do {
+                    installed.formUnion(try autoreleasepool { try lockfilePackages(named: name, data, limits: limits).compactMap { InstalledPackage(name: $0.name, version: $0.version, path: path) } })
+                } catch {
+                    notScanned.append(.notParsed(path: path, check: packageCheckName, problem: error, limits: limits))
+                }
             }
         }
         var budget = globalBudget
-        var cut: [String] = []
         for directory in ProjectFolders.uniqueDirectories(moduleDirectories) {
-            installed.formUnion(modulePackages(in: directory, depth: 0, budget: &budget))
-            if budget < 0 { cut.append(NSString(string: directory).abbreviatingWithTildeInPath) }
+            installed.formUnion(modulePackages(in: directory, depth: 0, budget: &budget, notScanned: &notScanned, limits: limits))
+            if budget < 0 {
+                notScanned.append(NotScannedEntry(reason: .overCountLimit, path: directory, explanation: "npm package check covered only the first \(globalBudget.formatted()) global packages and skipped the rest here", limits: limits))
+            }
         }
-        let notices = [
-            oversized.isEmpty ? nil : "npm package check skipped lockfiles over \(Int64(maxLockfileBytes).formatted(.byteCount(style: .decimal))): \(oversized.joined(separator: ", ")).",
-            cut.isEmpty ? nil : "npm package check covered only the first \(globalBudget.formatted()) global packages and skipped the rest of \(cut.joined(separator: ", ")).",
-        ].compactMap { $0 }
         let sorted = installed.sorted { ($0.path, $0.name, $0.version) < ($1.path, $1.name, $1.version) }
-        return (sorted, notices.isEmpty ? nil : notices.joined(separator: " "))
+        return (sorted, notScanned)
     }
 
     static func moduleDirectories(for installs: [Installation]) -> [String] {
         installs.filter { $0.product == .node }.flatMap { install in installModuleSubpaths.map { "\(install.path)/\($0)" } } + globalModuleDirectories
     }
 
-    static func lockfilePackages(named name: String, _ data: Data) -> [(name: String, version: String)] {
+    static func lockfilePackages(named name: String, _ data: Data, limits: ScanLimits = .defaults) throws -> [(name: String, version: String)] {
         switch name {
         case yarnLockName: yarnLockPackages(String(decoding: data, as: UTF8.self))
         case pnpmLockName: pnpmLockPackages(String(decoding: data, as: UTF8.self))
-        default: packageLockPackages(data)
+        default: try packageLockPackages(data, limits: limits)
         }
     }
 
-    static func packageLockPackages(_ data: Data) -> [(name: String, version: String)] {
-        guard let lockfile = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+    static func packageLockPackages(_ data: Data, limits: ScanLimits = .defaults) throws -> [(name: String, version: String)] {
+        guard let lockfile = try JSONFile.object(from: data) else { return [] }
         if let packages = lockfile["packages"] as? [String: Any] {
             return packages.compactMap { key, value in
                 guard
@@ -67,15 +67,15 @@ enum NpmInventory {
                 return (entry["name"] as? String ?? String(key[folder.upperBound...]), version)
             }
         }
-        return dependencyPackages(lockfile["dependencies"] as? [String: Any] ?? [:], depth: 0)
+        return dependencyPackages(lockfile["dependencies"] as? [String: Any] ?? [:], depth: 0, limits: limits)
     }
 
-    static func dependencyPackages(_ dependencies: [String: Any], depth: Int) -> [(name: String, version: String)] {
-        guard depth < maxDependencyDepth else { return [] }
+    static func dependencyPackages(_ dependencies: [String: Any], depth: Int, limits: ScanLimits = .defaults) -> [(name: String, version: String)] {
+        guard depth < limits[.maxDependencyDepth] else { return [] }
         return dependencies.flatMap { name, value -> [(name: String, version: String)] in
             guard let entry = value as? [String: Any] else { return [] }
             let own = (entry["version"] as? String).flatMap { specifier("\(name)@\($0)"[...]) }
-            return [own].compactMap { $0 } + dependencyPackages(entry["dependencies"] as? [String: Any] ?? [:], depth: depth + 1)
+            return [own].compactMap { $0 } + dependencyPackages(entry["dependencies"] as? [String: Any] ?? [:], depth: depth + 1, limits: limits)
         }
     }
 
@@ -144,7 +144,7 @@ enum NpmInventory {
         return split(parts.version.dropFirst(4)).map { ($0.name, String($0.version)) }
     }
 
-    static func modulePackages(in directory: String, depth: Int, budget: inout Int) -> [InstalledPackage] {
+    static func modulePackages(in directory: String, depth: Int, budget: inout Int, notScanned: inout [NotScannedEntry], limits: ScanLimits = .defaults) -> [InstalledPackage] {
         var packages: [InstalledPackage] = []
         for entry in ProjectFolders.contents(of: directory) where entry.isDirectory && !entry.name.hasPrefix(".") {
             let path = "\(directory)/\(entry.name)"
@@ -152,19 +152,36 @@ enum NpmInventory {
             for folder in folders {
                 budget -= 1
                 guard budget >= 0 else { return packages }
-                if
-                    let data = RegularFile.read(atPath: "\(folder)/\(manifestName)", maxBytes: maxManifestBytes, followingSymlinks: false),
-                    let manifest = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-                    let name = manifest["name"] as? String, let version = manifest["version"] as? String,
-                    let package = InstalledPackage(name: name, version: version, path: folder)
-                {
-                    packages.append(package)
+                do {
+                    if let package = try manifestPackage(in: folder, limits: limits) {
+                        packages.append(package)
+                    }
+                } catch {
+                    notScanned.append(.notParsed(path: "\(folder)/\(manifestName)", check: packageCheckName, problem: error, limits: limits))
                 }
-                if depth < maxModuleDepth {
-                    packages += modulePackages(in: "\(folder)/node_modules", depth: depth + 1, budget: &budget)
+                if depth < limits[.maxModuleDepth] {
+                    packages += modulePackages(in: "\(folder)/\(moduleFolderName)", depth: depth + 1, budget: &budget, notScanned: &notScanned, limits: limits)
                 }
             }
         }
         return packages
+    }
+
+    static func manifestPackage(in folder: String, limits: ScanLimits = .defaults) throws -> InstalledPackage? {
+        try autoreleasepool {
+            guard
+                let data = RegularFile.read(atPath: "\(folder)/\(manifestName)", maxBytes: limits[.maxManifestBytes], followingSymlinks: false),
+                let manifest = try manifestFields(of: data)
+            else { return nil }
+            return InstalledPackage(name: manifest.name, version: manifest.version, path: folder)
+        }
+    }
+
+    static func manifestFields(of data: Data) throws -> (name: String, version: String)? {
+        guard
+            let manifest = try JSONFile.object(from: data),
+            let name = manifest["name"] as? String, let version = manifest["version"] as? String
+        else { return nil }
+        return (name, version)
     }
 }

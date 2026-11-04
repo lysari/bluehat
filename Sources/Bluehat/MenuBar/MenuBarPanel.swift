@@ -46,10 +46,15 @@ final class MenuBarPanel: NSPanel {
         true
     }
 
+    var isFocused: Bool {
+        isKeyWindow || attachedSheet?.isKeyWindow == true || childWindows?.contains(where: \.isKeyWindow) == true
+    }
+
     func show(below anchor: NSWindow) {
         self.anchor = anchor
         place(size: frame.size)
-        makeKeyAndOrderFront(nil)
+        orderFrontRegardless()
+        (attachedSheet ?? self).makeKey()
     }
 
     @objc private func screensChanged() {

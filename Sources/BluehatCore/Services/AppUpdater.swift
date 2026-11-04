@@ -95,7 +95,7 @@ public struct AppUpdater: Sendable {
     static let downloadHosts: Set<String> = ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
     static let maxReleaseBytes = 1_000_000
     static let maxSignatureBytes = 16_000
-    static let maxImageBytes = Scanner.maxHashedFileBytes
+    static let maxImageBytes = 50_000_000
     static let downloadTimeout: TimeInterval = 600
     static let writeChunkBytes = 1 << 18
 
@@ -165,7 +165,7 @@ public struct AppUpdater: Sendable {
             details.size == manifest.size
         else { throw .imageMismatch }
         try? details.handle.close()
-        guard Scanner.sha256(of: file) == manifest.sha256 else { throw .imageMismatch }
+        guard Scanner.sha256(of: file, maxBytes: maxImageBytes) == manifest.sha256 else { throw .imageMismatch }
         return VerifiedImage(file: file, version: version)
     }
 
@@ -173,7 +173,7 @@ public struct AppUpdater: Sendable {
         guard
             SoftwareVersion(appRelease: version) != nil,
             let details = RegularFile.open(atPath: file.path, followingSymlinks: false),
-            let sha256 = Scanner.sha256(of: file)
+            let sha256 = Scanner.sha256(of: file, maxBytes: maxImageBytes)
         else { throw .imageMismatch }
         try? details.handle.close()
         let encoder = JSONEncoder()

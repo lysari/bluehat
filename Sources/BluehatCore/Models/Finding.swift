@@ -2,17 +2,15 @@ import CryptoKit
 import Foundation
 
 public struct Finding: Sendable, Identifiable {
-    static let maxDetailLength = 200
-
     public let id = UUID()
     public let rule: Rule
     public let detail: String
     public let path: String?
     public let fingerprint: String
 
-    public init(rule: Rule, detail: String, path: String?) {
+    public init(rule: Rule, detail: String, path: String?, limits: ScanLimits = .defaults) {
         self.rule = rule
-        self.detail = Self.clip(Self.displayable(detail))
+        self.detail = Self.clip(Self.displayable(detail), limits: limits)
         self.path = path
         let subject = "\(detail.utf8.count):\(detail)\(path ?? "")"
         fingerprint = rule.id + "|" + SHA256.hash(data: Data(subject.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -31,7 +29,8 @@ public struct Finding: Sendable, Identifiable {
         return String(scalars)
     }
 
-    static func clip(_ text: String) -> String {
-        text.count > maxDetailLength ? String(text.prefix(maxDetailLength)) + "…" : text
+    static func clip(_ text: String, limits: ScanLimits = .defaults) -> String {
+        let maxLength = limits[.maxDetailLength]
+        return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
     }
 }

@@ -17,13 +17,25 @@ public struct ScanRecord: Codable, Sendable, Identifiable, Equatable {
     public let rulesVersion: Int
     public let duration: TimeInterval
     public let entries: [Entry]
+    public let kind: ScanKind
 
-    public init(date: Date, rulesVersion: Int, duration: TimeInterval, findings: [Finding]) {
+    public init(date: Date, rulesVersion: Int, duration: TimeInterval, findings: [Finding], kind: ScanKind = .normal) {
         id = UUID()
+        self.kind = kind
         self.date = date
         self.rulesVersion = rulesVersion
         self.duration = duration
         entries = findings.map { Entry(ruleID: $0.rule.id, title: $0.rule.title, severity: $0.rule.severity, detail: $0.detail) }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        rulesVersion = try container.decode(Int.self, forKey: .rulesVersion)
+        duration = try container.decode(TimeInterval.self, forKey: .duration)
+        entries = try container.decode([Entry].self, forKey: .entries)
+        kind = (try? container.decode(ScanKind.self, forKey: .kind)) ?? .normal
     }
 
     public var issues: [Entry] {

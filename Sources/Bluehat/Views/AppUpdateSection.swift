@@ -24,8 +24,8 @@ struct AppUpdateSection: View {
             case .available(let release):
                 LabeledContent("New version", value: release.version.description)
                 LabeledContent("Released", value: release.published.formatted(date: .abbreviated, time: .omitted))
-                releaseNotes(release.notes)
                 actionRows(for: release)
+                releaseNotes(release.notes)
             }
         } header: {
             Text("App updates")
@@ -59,16 +59,15 @@ struct AppUpdateSection: View {
     }
 
     private func releaseNotes(_ notes: String) -> some View {
-        ScrollView {
+        VStack(alignment: .leading, spacing: Metrics.spaceSmall) {
+            Text("Release notes")
+                .font(Typography.rowTitle)
             Text(notes.isEmpty ? AttributedString("This release has no notes.") : Self.formatted(notes))
                 .font(Typography.caption)
                 .foregroundStyle(Palette.secondaryText)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlayScrollers()
         }
-        .frame(height: Metrics.releaseNotesHeight)
-        .accessibilityLabel("Release notes")
     }
 
     @ViewBuilder private func actionRows(for release: AppRelease) -> some View {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct HistorySettingsTab: View {
     let history: ScanHistory
+    let maxRecords: Int
 
     var body: some View {
         Form {
@@ -15,11 +16,11 @@ struct HistorySettingsTab: View {
                     }
                 }
             } footer: {
-                Text("Bluehat keeps the last \(ScanHistory.maxRecords) scans on this Mac.")
+                Text("Bluehat keeps the last \(maxRecords) scans on this Mac.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.secondaryText)
+                    .overlayScrollers(flashesOnAppear: true)
             }
-            .overlayScrollers()
         }
         .formStyle(.grouped)
     }
@@ -57,7 +58,7 @@ private struct HistoryRow: View {
                 VStack(alignment: .leading, spacing: Metrics.spaceTight) {
                     Text(record.date.formatted(date: .abbreviated, time: .shortened))
                         .font(Typography.rowTitle)
-                    Text("Rules v\(String(record.rulesVersion)) · \(record.duration.formatted(.number.precision(.fractionLength(1))))s")
+                    Text(details)
                         .font(Typography.caption)
                         .foregroundStyle(Palette.secondaryText)
                 }
@@ -68,6 +69,12 @@ private struct HistoryRow: View {
             }
             .accessibilityElement(children: .combine)
         }
+    }
+
+    private var details: String {
+        let rules = "Rules v\(String(record.rulesVersion))"
+        guard record.kind == .deep else { return "\(rules) · \(record.duration.formatted(.number.precision(.fractionLength(1))))s" }
+        return "Deep Scan · \(rules) · \(Duration.seconds(record.duration).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .narrow, maximumUnitCount: 2)))"
     }
 
     private var summary: String {

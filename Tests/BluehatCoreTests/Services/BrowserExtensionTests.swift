@@ -59,13 +59,18 @@ struct BrowserExtensionTests {
         }
     }
 
+    func localizedAppName(locale: String, directory: String) -> String {
+        var notScanned: [NotScannedEntry] = []
+        return Scanner.localizedName("__MSG_appName__", manifest: ["default_locale": locale], directory: directory, notScanned: &notScanned)
+    }
+
     @Test func localeCannotLeaveTheLocalesFolder() throws {
         defer { try? FileManager.default.removeItem(at: root) }
         let directory = root.appending(path: "Default/Extensions/id/1.0")
         try write(#"{"appName": {"message": "Escaped"}}"#, to: "Default/Extensions/x/messages.json")
         try write(#"{"appName": {"message": "Escaped"}}"#, to: "Default/Extensions/id/1.0/_locales/../../../x/messages.json")
-        #expect(Scanner.localizedName("__MSG_appName__", manifest: ["default_locale": "../../../x"], directory: directory.path) == "__MSG_appName__")
-        #expect(Scanner.localizedName("__MSG_appName__", manifest: ["default_locale": String(repeating: "a", count: 17)], directory: directory.path) == "__MSG_appName__")
+        #expect(localizedAppName(locale: "../../../x", directory: directory.path) == "__MSG_appName__")
+        #expect(localizedAppName(locale: String(repeating: "a", count: 17), directory: directory.path) == "__MSG_appName__")
     }
 
     @Test func symlinkedMessagesAreNotFollowed() throws {
@@ -75,8 +80,8 @@ struct BrowserExtensionTests {
         try FileManager.default.createDirectory(at: root.appending(path: "ext/_locales/en"), withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: root.appending(path: "ext/_locales/en/messages.json"), withDestinationURL: root.appending(path: "elsewhere.json"))
         let directory = root.appending(path: "ext").path
-        #expect(Scanner.localizedName("__MSG_appName__", manifest: ["default_locale": "pt_BR"], directory: directory) == "Real")
-        #expect(Scanner.localizedName("__MSG_appName__", manifest: ["default_locale": "en"], directory: directory) == "__MSG_appName__")
+        #expect(localizedAppName(locale: "pt_BR", directory: directory) == "Real")
+        #expect(localizedAppName(locale: "en", directory: directory) == "__MSG_appName__")
     }
 
     @Test func missingBrowsersGiveNoExtensions() {

@@ -21,7 +21,7 @@ struct AboutSettingsTab: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .overlayScrollers()
+            .overlayScrollers(flashesOnAppear: true)
             AppUpdateSection(store: store)
         }
         .formStyle(.grouped)

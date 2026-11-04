@@ -178,7 +178,7 @@ struct AppUpdaterTests {
         #expect(throws: AppUpdateError.manifestMismatch) { try updater.open(signed, for: try version("1.3")) }
     }
 
-    @Test(arguments: [0, -1, Scanner.maxHashedFileBytes + 1])
+    @Test(arguments: [0, -1, AppUpdater.maxImageBytes + 1])
     func refusesAnImpossibleSize(size: Int) throws {
         let signed = try signedManifest(manifest(size: size))
         #expect(throws: AppUpdateError.manifestMismatch) { try updater.open(signed, for: try version("1.3")) }

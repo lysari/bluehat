@@ -13,6 +13,10 @@ struct FileHashTests {
         try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
     }
 
+    func budget(_ files: Int) -> ScanLimits {
+        ScanLimits(unchecked: [.maxHashedFilesPerDirectory: files])
+    }
+
     func hashesByName(_ hashes: [String: String]) -> [String: String] {
         Dictionary(uniqueKeysWithValues: hashes.map { (URL(fileURLWithPath: $0.key).lastPathComponent, $0.value) })
     }
@@ -24,7 +28,7 @@ struct FileHashTests {
         }
         try write("abc", to: "second/deep/er/match.bin", modified: .distantPast)
 
-        let hashed = Scanner.hashedFiles(in: [root.appending(path: "first").path, root.appending(path: "second").path], budget: 2)
+        let hashed = Scanner.hashedFiles(in: [root.appending(path: "first").path, root.appending(path: "second").path], limits: budget(2))
 
         #expect(hashesByName(hashed.hashes)["match.bin"] == abcHash)
         #expect(hashed.hashes.count == 3)
@@ -36,7 +40,7 @@ struct FileHashTests {
         try write("newer", to: "newer.txt", modified: .now - 3_600)
         try write("abc", to: "newest.txt", modified: .distantPast)
 
-        let hashed = Scanner.hashedFiles(in: [root.path], budget: 2)
+        let hashed = Scanner.hashedFiles(in: [root.path], limits: budget(2))
 
         #expect(Set(hashesByName(hashed.hashes).keys) == ["newer.txt", "newest.txt"])
     }
@@ -50,7 +54,7 @@ struct FileHashTests {
         }
         try write("abc", to: "match.bin", modified: .now - 3_600)
 
-        let hashed = Scanner.hashedFiles(in: [root.path], budget: 1)
+        let hashed = Scanner.hashedFiles(in: [root.path], limits: budget(1))
 
         #expect(hashesByName(hashed.hashes) == ["match.bin": abcHash])
     }
@@ -61,10 +65,10 @@ struct FileHashTests {
         try FileManager.default.createSymbolicLink(atPath: root.appending(path: "link.bin").path, withDestinationPath: root.appending(path: "real.bin").path)
         #expect(mkfifo(root.appending(path: "pipe").path, 0o600) == 0)
 
-        let hashed = Scanner.hashedFiles(in: [root.path], budget: 10)
+        let hashed = Scanner.hashedFiles(in: [root.path], limits: budget(10))
 
         #expect(hashesByName(hashed.hashes) == ["real.bin": abcHash])
-        #expect(Scanner.sha256(of: root.appending(path: "link.bin")) == nil)
+        #expect(Scanner.sha256(of: root.appending(path: "link.bin"), maxBytes: ScanLimits.defaults[.maxHashedFileBytes]) == nil)
     }
 
     @Test func reportsSkippedFilesPerFolder() throws {
@@ -72,9 +76,54 @@ struct FileHashTests {
         try write("old", to: "old.txt", modified: .now - 3_600)
         try write("abc", to: "newest.txt")
 
-        let hashed = Scanner.hashedFiles(in: [root.path], budget: 1)
+        let hashed = Scanner.hashedFiles(in: [root.path], limits: budget(1))
 
-        #expect(hashed.notice == "Fingerprint check covered only the 1 newest files per folder and skipped 1 in \(root.path).")
+        #expect(hashed.notScanned.map(\.path) == [root.path])
+        #expect(hashed.notScanned.map(\.reason) == [.overCountLimit])
+        #expect(hashed.notScanned.map(\.explanation) == ["Fingerprint check covered only the 1 newest files here and skipped 1"])
+    }
+
+    @Test func aFileOverTheSizeLimitIsListedAndNotHashed() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("abc", to: "big.bin")
+        let big = root.appending(path: "big.bin").path
+        #expect(truncate(big, off_t(ScanLimits.defaults[.maxHashedFileBytes] + 1)) == 0)
+
+        let hashed = Scanner.hashedFiles(in: [root.path])
+
+        #expect(hashed.hashes.isEmpty)
+        #expect(hashed.notScanned.first?.path?.hasSuffix("/big.bin") == true)
+        #expect(hashed.notScanned.map(\.reason) == [.overSizeLimit])
+        #expect(hashed.notScanned.first?.explanation.hasPrefix("Over the size limit (50") == true)
+        #expect(hashed.notScanned.first?.explanation.hasSuffix("limit 50 MB)") == true)
+    }
+
+    @Test func aFolderPastTheDepthLimitIsListed() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        let deep = (1...(ScanLimits.defaults[.maxHashDepth] + 1)).map { "d\($0)" }.joined(separator: "/")
+        try write("abc", to: "\(deep)/inner/file.bin")
+
+        let hashed = Scanner.hashedFiles(in: [root.path])
+
+        #expect(hashed.hashes.isEmpty)
+        #expect(hashed.notScanned.map(\.reason) == [.overDepthLimit])
+        #expect(hashed.notScanned.first?.path?.hasSuffix("/\(deep)") == true)
+    }
+
+    @Test func aFolderThatCannotBeListedIsListedWithNoPermission() throws {
+        let locked = root.appending(path: "locked")
+        defer {
+            chmod(locked.path, 0o700)
+            try? FileManager.default.removeItem(at: root)
+        }
+        try write("abc", to: "locked/file.bin")
+        #expect(chmod(locked.path, 0) == 0)
+
+        let hashed = Scanner.hashedFiles(in: [root.path])
+
+        #expect(hashed.hashes.isEmpty)
+        #expect(hashed.notScanned.map(\.reason) == [.noPermission])
+        #expect(hashed.notScanned.first?.path?.hasSuffix("/locked") == true)
     }
 
     func rule(_ id: String, check: CheckKind) -> Rule {
@@ -107,8 +156,8 @@ struct FileHashTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try write("abc", to: "newest.txt")
 
-        let hashed = Scanner.hashedFiles(in: [root.path], budget: 1)
+        let hashed = Scanner.hashedFiles(in: [root.path], limits: budget(1))
 
-        #expect(hashed.notice == nil)
+        #expect(hashed.notScanned.isEmpty)
     }
 }
