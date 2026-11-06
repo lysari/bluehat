@@ -191,7 +191,7 @@ struct StarterRuleTests {
     }
 
     @Test func warnsBeforeRevokingAMonitoredToken() throws {
-        for ruleID in ["npm.mini-shai-hulud-monitor", "npm.mini-shai-hulud-process"] {
+        for ruleID in ["npm.mini-shai-hulud-monitor", "npm.mini-shai-hulud-process", "npm.testmetest-worm"] {
             let rule = try #require(rulebook.rules.first { $0.id == ruleID })
             let remedy = try #require(rule.remedy)
             #expect(remedy.hasPrefix("Don't revoke any GitHub token yet"))
@@ -243,5 +243,24 @@ struct StarterRuleTests {
     ])
     func ignoresProcessesLikeReportedBackdoors(command: String) throws {
         #expect(try !matches("process.stealer-backdoor", command))
+    }
+
+    @Test(arguments: [
+        "/Users/alex/Library/com.apple.iTunesCloud/SystemUpdate --type=renderer",
+        "/Users/alex/Library/com.apple.internal.ck/iSync --type=renderer",
+        "/Users/alex/Library/com.apple.appleaccountd/loginwindow_._",
+    ])
+    func detectsTraderTraitorBackdoors(command: String) throws {
+        #expect(try matches("process.tradertraitor-backdoor", command))
+    }
+
+    @Test(arguments: [
+        "/System/Library/CoreServices/loginwindow.app/Contents/MacOS/loginwindow console",
+        "/System/Library/PrivateFrameworks/iTunesCloud.framework/Support/itunescloudd",
+        "/usr/libexec/cfprefsd --cache /Users/alex/Library/Caches/com.apple.iTunesCloud/SystemUpdate",
+        "/usr/sbin/softwareupdated",
+    ])
+    func ignoresAppleProcessesLikeTraderTraitorBackdoors(command: String) throws {
+        #expect(try !matches("process.tradertraitor-backdoor", command))
     }
 }
