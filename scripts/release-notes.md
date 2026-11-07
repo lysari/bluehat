@@ -1,4 +1,4 @@
-Bluehat is a menu bar threat scanner for macOS. It checks for known malware, persistence, unsigned apps, risky browser extensions, vulnerable developer tools (node, php, python, openssl, git, ruby), malicious npm packages and code injected into JavaScript project config files. Rules are Ed25519-signed, ship inside the app, and update only when you check and accept in Settings › Rules.
+Bluehat is a menu bar threat scanner for macOS. It checks for known malware, persistence, unsigned apps, risky browser extensions, vulnerable developer tools (node, php, python, openssl, git, ruby), malicious npm packages, and code injected into JavaScript project config files or into the npm of your global Node.js installs. Rules are Ed25519-signed, ship inside the app, and update only when you check and accept in Settings › Rules.
 
 ## Changes
 
