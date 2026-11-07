@@ -44,8 +44,9 @@ sent you. Bluehat looks for what that leaves behind:
   processes, launch items, file hashes and connections to their servers.
 - **Persistence**: launch items, shell startup lines and cron jobs that bring
   malware back after a restart.
-- **npm supply-chain attacks**: hijacked package releases in your lockfiles, and
-  code hidden in the config files of fake job interview repositories.
+- **npm supply-chain attacks**: hijacked package releases in your lockfiles,
+  code hidden in the config files of fake job interview repositories, and code
+  injected into npm itself.
 - **Vulnerable developer tools**: old Node.js, Python, PHP, Ruby, Git and OpenSSL
   installs with known CVEs.
 
@@ -79,6 +80,7 @@ run anything.
 | 🧱 **System extensions** | System extensions (VPNs, network filters, endpoint security, drivers) and loaded third-party kernel extensions that aren't from a short list of well-known vendors. |
 | 🦠 **XProtect** | Apple's built-in malware definitions, when they are older than the version the rules expect. |
 | 📡 **Connections** | Open TCP and UDP connections from any process to the command-and-control servers of current macOS malware and of attack frameworks such as Cobalt Strike and Sliver, from a daily ThreatFox feed, with the process name. |
+| 💉 **Node.js installs** | Code added to npm's own files, such as `npm/lib/cli.js`, in the global `node_modules` of Homebrew, nvm, Volta, fnm, asdf, mise and `/usr/local` installs, so it would run with every `npm` command. |
 
 ### The app
 
@@ -171,7 +173,7 @@ a plain dark background, and the Settings images leave out the window's tab bar.
   A download must pass these checks before it is shown as an update, and nothing
   is saved until you accept it. If the saved copy fails verification when it loads,
   Bluehat says so and uses the copy built into the app.
-- **Rules are data.** A rule picks one of the 20 checks built into the app and
+- **Rules are data.** A rule picks one of the 21 checks built into the app and
   gives it paths, patterns, hashes, versions or IP addresses. It can't add a command.
 - **Bluehat never runs what it finds.** It reads versions from folder names and
   headers and checks code signatures with the Security framework. The only

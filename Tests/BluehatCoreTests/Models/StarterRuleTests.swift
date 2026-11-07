@@ -263,4 +263,36 @@ struct StarterRuleTests {
     func ignoresAppleProcessesLikeTraderTraitorBackdoors(command: String) throws {
         #expect(try !matches("process.tradertraitor-backdoor", command))
     }
+
+    @Test(arguments: [
+        "global.i='5-1857-du';var _$_a1=(function(n,w){var r=n.length;return r})('x',1);",
+        "global.o = \"5-1877-du\";",
+        "global['_V']='5-1857-du';",
+        "global.r=require;global.m=module;",
+        "global['r'] = require",
+        "const r=require;r('child_process').exec(c)",
+        "eval(Buffer.from(p,'base64').toString())",
+        "new Function(String.fromCharCode(114,101,116))()",
+        "module.exports = (process) => run(process)" + String(repeating: " ", count: 300) + "eval(x)",
+    ])
+    func detectsPayloadInjectedIntoNpm(line: String) throws {
+        #expect(try matches("npm.cli-injected-payload", line))
+    }
+
+    @Test(arguments: [
+        "#!/usr/bin/env node",
+        "require('../lib/cli.js')(process)",
+        "const validateEngines = require('./cli/validate-engines.js')",
+        "const cliEntry = require.resolve('./cli/entry.js')",
+        "module.exports = (process) => validateEngines(process, () => require(cliEntry))",
+        "process.title = 'npm'",
+        "global.process = require('process')",
+        "const { definitions, flatten, shorthands } = require('@npmcli/config/lib/definitions')",
+        "  const npm = new Npm()",
+        "const version = '10.9.2'",
+        "    if (!global.npmlog) {",
+    ])
+    func ignoresNpmsOwnCode(line: String) throws {
+        #expect(try !matches("npm.cli-injected-payload", line))
+    }
 }

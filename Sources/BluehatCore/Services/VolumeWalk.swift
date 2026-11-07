@@ -21,7 +21,7 @@ final class VolumeWalk {
         let listedPackages: Set<String>
 
         init(rules: [Rule]) {
-            files = Scanner.projectFileChecks(rules.filter { $0.check == .projectFile })
+            files = Scanner.fileChecks(rules.filter { $0.check == .projectFile })
             packages = Scanner.packageChecks(rules.filter { $0.check == .npmPackage })
             listedPackages = Set(packages.flatMap(\.listed.keys))
         }

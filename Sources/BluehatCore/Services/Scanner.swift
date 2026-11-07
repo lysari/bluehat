@@ -240,6 +240,10 @@ public struct Scanner: Sendable {
                 notices.append("Couldn't save the notarization cache: \(error.localizedDescription)")
             }
             return checked.findings
+        case .nodeInstall:
+            let checked = nodeInstallFindings(rules, moduleDirectories: NpmInventory.moduleDirectories(for: installedSoftware(limits: limits)), limits: limits)
+            notScanned.add(contentsOf: checked.notScanned)
+            return checked.findings
         }
     }
 
@@ -407,13 +411,13 @@ public struct Scanner: Sendable {
         }
     }
 
-    static func projectFileChecks(_ rules: [Rule]) -> [(rule: Rule, regexes: [NSRegularExpression])] {
+    static func fileChecks(_ rules: [Rule]) -> [(rule: Rule, regexes: [NSRegularExpression])] {
         rules.map { (rule: $0, regexes: regexes($0.patterns)) }
     }
 
     static func projectFileFindings(_ rules: [Rule], projects: [(path: String, files: Set<String>)], limits: ScanLimits = .defaults) -> (findings: [Finding], notScanned: [NotScannedEntry]) {
         let maxReadBytes = limits[.maxReadBytes]
-        let compiled = projectFileChecks(rules)
+        let compiled = fileChecks(rules)
         var findings: [Finding] = []
         var notScanned: [NotScannedEntry] = []
         for project in projects where project.files.contains(NpmInventory.manifestName) {
@@ -423,6 +427,24 @@ public struct Scanner: Sendable {
                 guard !checks.isEmpty, let file = RegularFile.readStart(atPath: path, maxBytes: maxReadBytes, followingSymlinks: false) else { continue }
                 if file.size > maxReadBytes { notScanned.append(.readOnlyStart(path: path, check: "Project file check", limits: limits)) }
                 findings += autoreleasepool { fileFindings(checks: checks, data: file.data, path: path, limits: limits) }
+            }
+        }
+        return (findings, notScanned)
+    }
+
+    static func nodeInstallFindings(_ rules: [Rule], moduleDirectories: [String], limits: ScanLimits = .defaults) -> (findings: [Finding], notScanned: [NotScannedEntry]) {
+        let maxReadBytes = limits[.maxReadBytes]
+        let compiled = fileChecks(rules)
+        let files = Set(rules.flatMap { $0.files ?? [] }).sorted()
+        var findings: [Finding] = []
+        var notScanned: [NotScannedEntry] = []
+        for directory in ProjectFolders.uniqueDirectories(moduleDirectories) {
+            for file in files {
+                let path = "\(directory)/\(file)"
+                guard let read = RegularFile.readStart(atPath: path, maxBytes: maxReadBytes, followingSymlinks: false) else { continue }
+                if read.size > maxReadBytes { notScanned.append(.readOnlyStart(path: path, check: "Node.js install check", limits: limits)) }
+                let checks = compiled.filter { $0.rule.files?.contains(file) == true }
+                findings += autoreleasepool { fileFindings(checks: checks, data: read.data, path: path, limits: limits) }
             }
         }
         return (findings, notScanned)

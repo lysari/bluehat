@@ -23,7 +23,7 @@ public enum ThreatCategory: String, Codable, Sendable {
 }
 
 public enum CheckKind: String, Codable, Sendable, CaseIterable {
-    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect, outbound, notarization
+    case path, launchItem, shellProfile, process, listeningPort, fileHash, crontab, setting, launchItemSignature, appSignature, sshKey, profile, browserExtension, softwareVersion, npmPackage, projectFile, systemExtension, xprotect, outbound, notarization, nodeInstall
 }
 
 public enum SystemSetting: String, Codable, Sendable {
@@ -199,6 +199,8 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
         case .outbound:
             guard (rule.hosts == nil) != (rule.ports == nil) else { return "set either hosts or ports, not both" }
             return rule.hosts == nil ? problem(inPorts: rule.ports) : problem(inHosts: rule.hosts)
+        case .nodeInstall:
+            return problem(inModulePaths: rule.files) ?? problem(inPatterns: rule.patterns)
         }
     }
 
@@ -285,6 +287,18 @@ public struct Rulebook: Codable, Sendable, SignedPayload {
         guard let names, !names.isEmpty, names.count <= maxFileNames else { return "files must list 1-\(maxFileNames) file names" }
         for name in names where name.contains("..") || name.range(of: fileNamePattern, options: .regularExpression) == nil {
             return "file \(name) must be a file name of letters, digits, ., -, _ and * only"
+        }
+        return nil
+    }
+
+    static func problem(inModulePaths paths: [String]?) -> String? {
+        guard let paths, !paths.isEmpty, paths.count <= maxFileNames else { return "files must list 1-\(maxFileNames) paths" }
+        for path in paths {
+            let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+            let isPlain = parts.allSatisfy { !$0.contains("..") && !$0.contains("*") && $0.range(of: fileNamePattern, options: .regularExpression) != nil }
+            if !isPlain || path.count > maxPathLength {
+                return "file \(path) must be a path inside node_modules such as npm/lib/cli.js, with parts of letters, digits, ., - and _ only"
+            }
         }
         return nil
     }

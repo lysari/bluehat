@@ -98,7 +98,7 @@ public struct ScanLimit: Sendable, Hashable, Identifiable {
         key: "maxReadBytes",
         area: .files,
         title: "Text and plist files",
-        help: "How much of a shell profile, launch item, extension manifest or config file is read. Raising costs memory and time. Lowering can skip a launch item or leave the end of a file unread.",
+        help: "How much of a shell profile, launch item, extension manifest, config file or npm file is read. Raising costs memory and time. Lowering can skip a launch item or leave the end of a file unread.",
         unit: .megabytes,
         defaultValue: 1_000_000,
         range: 250_000...5_000_000

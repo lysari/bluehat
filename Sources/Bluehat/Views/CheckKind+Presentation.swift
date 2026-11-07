@@ -184,6 +184,14 @@ extension CheckKind {
                 fileContents: "Only each app's signature and notarization ticket. The app isn't run.",
                 internet: "Sometimes. If macOS can't settle a new or changed app offline, Gatekeeper may ask Apple, for 5 apps per scan by default (Settings › Limits). Never when offline."
             )
+        case .nodeInstall:
+            CheckDetails(
+                looksFor: "Code added to npm's own files, which then runs with every npm command. The signed rules choose the files and patterns.",
+                looksIn: "The global node_modules of each Node.js install: Homebrew, nvm, Volta, fnm, asdf, mise and /usr/local. Only the files the rules name.",
+                findingMeans: "npm on this Mac was changed to run hidden code, so it ran each time you used npm or npx. Treat its secrets as stolen.",
+                fileContents: "Yes, the start of each named file, up to the size in Settings › Limits. Matched code isn't shown and nothing is run.",
+                internet: CheckDetails.staysOnMac
+            )
         }
     }
 
@@ -209,6 +217,7 @@ extension CheckKind {
         case .xprotect: "XProtect"
         case .outbound: "Connections"
         case .notarization: "Notarization"
+        case .nodeInstall: "Node.js installs"
         }
     }
 
@@ -239,6 +248,7 @@ extension CheckKind {
         case .xprotect: "checkmark.shield"
         case .outbound: "antenna.radiowaves.left.and.right"
         case .notarization: "checkmark.seal"
+        case .nodeInstall: "curlybraces.square"
         }
     }
 
@@ -264,6 +274,7 @@ extension CheckKind {
         case .xprotect: "Open System Settings › General › Software Update, click the info button next to Automatic Updates, and turn on Install Security Responses and system files. Stay online and restart; macOS updates XProtect on its own. Scan again a day later."
         case .outbound: "Open Activity Monitor, search for the process named above, and quit it (Force Quit if it comes back). Then scan again and remove the launch item, app or file that started it. If it was malware, change your passwords from another device, starting with email, Apple Account and banking. If you know the app and trust it, ignore this finding."
         case .notarization: "Check the developer's website for a newer version of the app, which is usually notarized, and install it from there. If the app is old and you trust its developer, ignore this finding. If you don't know where it came from, quit it and move it to the Trash."
+        case .nodeInstall: "Don't run npm or npx with this Node.js version. Reinstall it with the tool that installed it (for example nvm uninstall and nvm install, or brew reinstall node), which replaces npm's files, then scan again. Act on Bluehat's other findings first, then from another device rotate your npm, GitHub and cloud tokens and SSH keys."
         }
     }
 }

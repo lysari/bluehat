@@ -202,6 +202,44 @@ struct RuleTests {
         #expect(throws: Never.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "projectFile", #""files": [\#(most)], "patterns": ["x"]"#))) }
     }
 
+    @Test func decodesNodeInstallRule() throws {
+        let fields = #""files": ["npm/lib/cli.js", "npm/bin/npm-cli.js", "corepack/dist/corepack.js"], "patterns": ["global\\.i"]"#
+        let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "nodeInstall", fields))).rules.first)
+        #expect(rule.check == .nodeInstall)
+        #expect(rule.files == ["npm/lib/cli.js", "npm/bin/npm-cli.js", "corepack/dist/corepack.js"])
+        #expect(rule.patterns == [#"global\.i"#])
+    }
+
+    @Test(arguments: [
+        #""patterns": ["x"]"#,
+        #""files": [], "patterns": ["x"]"#,
+        #""files": [""], "patterns": ["x"]"#,
+        #""files": ["/usr/local/lib/node_modules/npm/lib/cli.js"], "patterns": ["x"]"#,
+        #""files": ["../npm/lib/cli.js"], "patterns": ["x"]"#,
+        #""files": ["npm/../../.ssh/id_ed25519"], "patterns": ["x"]"#,
+        #""files": ["npm/./lib/cli.js"], "patterns": ["x"]"#,
+        #""files": ["npm//lib/cli.js"], "patterns": ["x"]"#,
+        #""files": ["npm/lib/"], "patterns": ["x"]"#,
+        #""files": ["npm/lib/*.js"], "patterns": ["x"]"#,
+        #""files": ["npm/lib/cli .js"], "patterns": ["x"]"#,
+        #""files": ["npm\\lib\\cli.js"], "patterns": ["x"]"#,
+        #""files": ["~/npm/lib/cli.js"], "patterns": ["x"]"#,
+        #""files": ["npm/lib/cli.js"]"#,
+        #""files": ["npm/lib/cli.js"], "patterns": ["(unclosed"]"#,
+    ])
+    func rejectsInvalidNodeInstallRule(fields: String) {
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "nodeInstall", fields))) }
+    }
+
+    @Test func rejectsTooManyOrOverlongNodeInstallPaths() {
+        let tooMany = (0...Rulebook.maxFileNames).map { #""npm/f\#($0).js""# }.joined(separator: ",")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "nodeInstall", #""files": [\#(tooMany)], "patterns": ["x"]"#))) }
+        let overlong = Array(repeating: String(repeating: "a", count: 64), count: Rulebook.maxPathLength / 64 + 1).joined(separator: "/")
+        #expect(throws: RulebookError.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "nodeInstall", #""files": ["\#(overlong)"], "patterns": ["x"]"#))) }
+        let most = (1...Rulebook.maxFileNames).map { #""npm/f\#($0).js""# }.joined(separator: ",")
+        #expect(throws: Never.self) { try Rulebook.decode(from: rulebookJSON(rule(check: "nodeInstall", #""files": [\#(most)], "patterns": ["x"]"#))) }
+    }
+
     @Test func decodesSystemExtensionRule() throws {
         let fields = #""teams": ["W5364U7YZB", "UBF8T346G9"], "bundles": ["io.macfuse", "org.virtualbox"]"#
         let rule = try #require(try Rulebook.decode(from: rulebookJSON(rule(check: "systemExtension", fields))).rules.first)
